@@ -10,13 +10,16 @@ uart_service_uuid = '6e400001-b5a3-f393-e0a9-e50e24dcca9e'
 tx_characteristic_uuid = '6e400002-b5a3-f393-e0a9-e50e24dcca9e' # Write
 rx_characteristic_uuid = '6e400003-b5a3-f393-e0a9-e50e24dcca9e' # Notify
 
-# Sensor States
-supported_sensors = { 4: 'Color',
+supported_dev_msg = { 0: 'General',
+                      1: 'Motors',
+                      2: 'MarkEraser',
+                      4: 'Color',
                      12: 'Bumper',
                      13: 'Light',
                      14: 'Battery',
                      17: 'Touch',
                      20: 'Cliff'}
+# Sensor States
 sensor = {'Color':   None,
           'Bumper':  None,
           'Light':   None,
@@ -71,12 +74,14 @@ class RootDevice(gatt.Device):
             message.append(byte)
 #        print ("Messages from Root:")
         device = message[0]
+        command = message[1]
+        ident = message[2]
         state = message[7]
 
-        if device in supported_sensors:
-            dev_name = supported_sensors[device]
+        if device in supported_dev_msg:
+            dev_name = supported_dev_msg[device]
 
-            if dev_name == 'Color':
+            if dev_name == 'Color' and command == 2:
                 if sensor[dev_name] is None:
                     sensor[dev_name] = [0]*32
                 i = 0
@@ -85,7 +90,7 @@ class RootDevice(gatt.Device):
                     sensor[dev_name][i*2+1] = byte & 0x0F
                     i += 1
 
-            elif dev_name == 'Bumper':
+            elif dev_name == 'Bumper' and command == 0:
                 if state == 0:
                     sensor[dev_name] = (False, False)
                 elif state == 0x40:
@@ -97,7 +102,7 @@ class RootDevice(gatt.Device):
                 else:
                     sensor[dev_name] = message
 
-            elif dev_name == 'Light':
+            elif dev_name == 'Light' and command == 0:
                 if state == 4:
                     sensor[dev_name] = (False, False)
                 elif state == 5:
@@ -109,10 +114,10 @@ class RootDevice(gatt.Device):
                 else:
                     sensor[dev_name] = message
 
-            elif dev_name == 'Battery':
+            elif dev_name == 'Battery' and command == 0:
                 sensor[dev_name] = message[9]
 
-            elif dev_name == 'Touch':
+            elif dev_name == 'Touch' and command == 0:
                 if sensor[dev_name] is None:
                     sensor[dev_name] = {}
                 sensor[dev_name]['FL'] = True if state & 0x80 == 0x80 else False
@@ -120,14 +125,15 @@ class RootDevice(gatt.Device):
                 sensor[dev_name]['RR'] = True if state & 0x20 == 0x20 else False
                 sensor[dev_name]['RL'] = True if state & 0x10 == 0x10 else False
 
-            elif dev_name == 'Cliff':
+            elif dev_name == 'Cliff' and command == 0:
                 sensor[dev_name] = True if state == 1 else False
             else:
                 sensor[dev_name] = message
+                print('Unhandled message from ' + dev_name)
+                print(message)
         else:
-            print('Unsupported message ' + str(device))
-
-        print(sensor)
+            print('Unsupported device ' + str(device))
+            print(message)
 
     def drive_forward(self):
         self.tx_characteristic.write_value([0x01, 0x04, 0x00, 0x00, 0x00, 0x00, 0x64, 0x00, 0x00, 0x00, 0x64, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xD1])
@@ -201,6 +207,9 @@ def drive_root(command):
     if command == "p":
         print ("Steer")
         manager.robot.steer(30,40)
+    if command == "z":
+        for s, v in sensor.items():
+            print(s, v)
 
 # start here if run as program / not imported as module
 if __name__ == "__main__":
@@ -212,13 +221,14 @@ if __name__ == "__main__":
     try:
         while manager.robot is None:
             pass # wait for a root robot to be discovered
-        print("Press letter (f,b,l,r) to drive robot (t) to turn, (s) to stop, (u or d) raise pen up or down, (q) to quit")
+        print("Press letter (f,b,l,r) to drive robot (t) to turn, (s) to stop, (u or d) raise pen up or down, (z) to get sensor states, (q) to quit")
         while char != "q":
             char = input() # wait for keyboard input
             drive_root(char)
-        print("Quitting")
-        manager.stop()
-        manager.robot.disconnect()
-        thread.join()
     except KeyboardInterrupt:
         pass
+
+    print("Quitting")
+    manager.stop()
+    manager.robot.disconnect()
+    thread.join()
