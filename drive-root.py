@@ -2,6 +2,7 @@
 
 import gatt
 import threading
+import crc8
 
 
 # BLE UUID's
@@ -73,15 +74,24 @@ class RootDevice(gatt.Device):
         for byte in value:
             message.append(byte)
 #        print ("Messages from Root:")
-        device = message[0]
+        device  = message[0]
         command = message[1]
-        ident = message[2]
-        state = message[7]
+        event   = message[2]
+        state   = message[7]
+        crc     = message[19]
 
+        if crc8.crc8(value).digest() != b'\x00':
+            print("CRC failed for message ", message)
+           
         if device in supported_dev_msg:
             dev_name = supported_dev_msg[device]
 
-            if dev_name == 'Color' and command == 2:
+            if dev_name == 'Motors' and command == 29:
+                m = ['left', 'right', 'markeraser']
+                c = ['none', 'overcurrent', 'undercurrent', 'underspeed', 'saturated', 'timeout']
+                print("Stall: {} motor {}.".format(m[state], c[message[8]]))
+
+            elif dev_name == 'Color' and command == 2:
                 if sensor[dev_name] is None:
                     sensor[dev_name] = [0]*32
                 i = 0
@@ -222,7 +232,7 @@ if __name__ == "__main__":
         while manager.robot is None:
             pass # wait for a root robot to be discovered
         print("Press letter (f,b,l,r) to drive robot (t) to turn, (s) to stop, (u or d) raise pen up or down, (z) to get sensor states, (q) to quit")
-        while char != "q":
+        while char != "q" and thread.is_alive():
             char = input() # wait for keyboard input
             drive_root(char)
     except KeyboardInterrupt:
