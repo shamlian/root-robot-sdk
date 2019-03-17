@@ -10,6 +10,20 @@ uart_service_uuid = '6e400001-b5a3-f393-e0a9-e50e24dcca9e'
 tx_characteristic_uuid = '6e400002-b5a3-f393-e0a9-e50e24dcca9e' # Write
 rx_characteristic_uuid = '6e400003-b5a3-f393-e0a9-e50e24dcca9e' # Notify
 
+# Sensor States
+supported_sensors = { 4: 'Color',
+                     12: 'Bumper',
+                     13: 'Light',
+                     14: 'Battery',
+                     17: 'Touch',
+                     20: 'Cliff'}
+sensor = {'Color':   None,
+          'Bumper':  None,
+          'Light':   None,
+          'Battery': None,
+          'Touch':   None,
+          'Cliff':   None}
+
 class BluetoothDeviceManager(gatt.DeviceManager):
     robot = None # root robot device
 
@@ -56,13 +70,64 @@ class RootDevice(gatt.Device):
         for byte in value:
             message.append(byte)
 #        print ("Messages from Root:")
-        if message[0] == 4: type = "Color Sensor"
-        if message[0] == 12: type = "Bumper"
-        if message[0] == 13: type = "Light Sensor"
-        if message[0] == 17: type = "Touch Sensor"
-        if message[0] == 20: type = "Cliff Sensor"
+        device = message[0]
+        state = message[7]
 
-        print(type, message)
+        if device in supported_sensors:
+            dev_name = supported_sensors[device]
+
+            if dev_name == 'Color':
+                if sensor[dev_name] is None:
+                    sensor[dev_name] = [0]*32
+                i = 0
+                for byte in message[3:19]:
+                    sensor[dev_name][i*2+0] = (byte & 0xF0) >> 4
+                    sensor[dev_name][i*2+1] = byte & 0x0F
+                    i += 1
+
+            elif dev_name == 'Bumper':
+                if state == 0:
+                    sensor[dev_name] = (False, False)
+                elif state == 0x40:
+                    sensor[dev_name] = (False, True)
+                elif state == 0x80:
+                    sensor[dev_name] = (True, False)
+                elif state == 0xC0:
+                    sensor[dev_name] = (True, True)
+                else:
+                    sensor[dev_name] = message
+
+            elif dev_name == 'Light':
+                if state == 4:
+                    sensor[dev_name] = (False, False)
+                elif state == 5:
+                    sensor[dev_name] = (False, True)
+                elif state == 6:
+                    sensor[dev_name] = (True, False)
+                elif state == 7:
+                    sensor[dev_name] = (True, True)
+                else:
+                    sensor[dev_name] = message
+
+            elif dev_name == 'Battery':
+                sensor[dev_name] = message[9]
+
+            elif dev_name == 'Touch':
+                if sensor[dev_name] is None:
+                    sensor[dev_name] = {}
+                sensor[dev_name]['FL'] = True if state & 0x80 == 0x80 else False
+                sensor[dev_name]['FR'] = True if state & 0x40 == 0x40 else False
+                sensor[dev_name]['RR'] = True if state & 0x20 == 0x20 else False
+                sensor[dev_name]['RL'] = True if state & 0x10 == 0x10 else False
+
+            elif dev_name == 'Cliff':
+                sensor[dev_name] = True if state == 1 else False
+            else:
+                sensor[dev_name] = message
+        else:
+            print('Unsupported message ' + str(device))
+
+        print(sensor)
 
     def drive_forward(self):
         self.tx_characteristic.write_value([0x01, 0x04, 0x00, 0x00, 0x00, 0x00, 0x64, 0x00, 0x00, 0x00, 0x64, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xD1])
