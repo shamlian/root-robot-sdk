@@ -38,6 +38,7 @@ class BluetoothDeviceManager(gatt.DeviceManager):
         self.robot.connect()
 
 class RootDevice(gatt.Device):
+    last_event = 255
     def connect_succeeded(self):
         super().connect_succeeded()
         print("[%s] Connected" % (self.mac_address))
@@ -81,7 +82,13 @@ class RootDevice(gatt.Device):
         crc     = message[19]
 
         if crc8.crc8(value).digest() != b'\x00':
-            print("CRC failed for message ", message)
+            if not (device == 4 and command == 2): # FW 1.5 fails
+                print("CRC failed for message ", message)
+                print(crc8.crc8(value).digest())
+            
+        if (event - self.last_event) & 0xFF != 1: # note, this will fail if the robot is fw some time before 1.5
+            print("Event out of order (was {} is {})".format(self.last_event, event))
+        self.last_event = event
            
         if device in supported_dev_msg:
             dev_name = supported_dev_msg[device]
@@ -165,6 +172,9 @@ class RootDevice(gatt.Device):
 
     def pen_down(self):
         self.tx_characteristic.write_value([0x02, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00])
+        
+    def get_fw(self):
+        manager.robot.tx_characteristic.write_value([0x00, 0x00, 0x00, 0xa5, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x4d])
 
     def turn_rate(self, rate):
         left = 0
@@ -220,6 +230,8 @@ def drive_root(command):
     if command == "z":
         for s, v in sensor.items():
             print(s, v)
+    if command == '`':
+        manager.robot.get_fw()
 
 # start here if run as program / not imported as module
 if __name__ == "__main__":
