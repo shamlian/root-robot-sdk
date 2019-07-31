@@ -27,4 +27,4 @@ It will also display sensor data from the Root (such as touch and bumper sensors
 
 The full Root API is here, if you want to add to this: https://github.com/RootRobotics/root-robot-ble-protocol
 
-Thanks to https://github.com/mogenson for all the help!
+Thanks to https://github.com/zlite for the original library, and to https://github.com/mogenson for his original work!
