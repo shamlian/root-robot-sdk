@@ -110,9 +110,8 @@ class Root(object):
             self.service_resolution_complete = True
 
         def characteristic_value_updated(self, characteristic, value):
-            message = []
-            for byte in value:
-                message.append(byte)
+            message = value
+
             device  = message[0]
             command = message[1]
             event   = message[2]
@@ -122,7 +121,7 @@ class Root(object):
             crc_fail = True if crc8.crc8(value).digest() != b'\x00' else False
             event_fail = True if (event - self.last_event) & 0xFF != 1 else False
             if self.sniff_mode:
-                print('C' if crc_fail else ' ', 'E' if event_fail else ' ', message)
+                print('C' if crc_fail else ' ', 'E' if event_fail else ' ', list(message) )
 
             self.last_event = event
 
