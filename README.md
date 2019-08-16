@@ -23,9 +23,8 @@ Instructions (from the Linux command line):
 "t" = Turn (input angle)
 "u" = Pen Up
 "d" = Pen Down
+"z" = Display sensor data
 "q" = Quit
-
-It will also display sensor data from the Root (such as touch and bumper sensors) when they are triggered. 
 
 The full Root API is here, if you want to add to this: https://github.com/RootRobotics/root-robot-ble-protocol
 
