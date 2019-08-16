@@ -4,6 +4,7 @@ import gatt
 import threading
 import crc8
 
+sniff_mode = True
 
 # BLE UUID's
 root_identifier_uuid = '48c5d828-ac2a-442d-97a3-0c9822b04979'
@@ -71,25 +72,21 @@ class RootDevice(gatt.Device):
 
     def characteristic_value_updated(self, characteristic, value):
         message = []
-        type = ""
         for byte in value:
             message.append(byte)
-#        print ("Messages from Root:")
         device  = message[0]
         command = message[1]
         event   = message[2]
         state   = message[7]
         crc     = message[19]
 
-        if crc8.crc8(value).digest() != b'\x00':
-            if not (device == 4 and command == 2): # FW 1.5 fails
-                print("CRC failed for message ", message)
-                print(crc8.crc8(value).digest())
-            
-        if (event - self.last_event) & 0xFF != 1: # note, this will fail if the robot is fw some time before 1.5
-            print("Event out of order (was {} is {})".format(self.last_event, event))
+        crc_fail = True if crc8.crc8(value).digest() != b'\x00' else False
+        event_fail = True if (event - self.last_event) & 0xFF != 1 else False
+        if sniff_mode:
+            print('C' if crc_fail else ' ', 'E' if event_fail else ' ', message)
+
         self.last_event = event
-           
+
         if device in supported_dev_msg:
             dev_name = supported_dev_msg[device]
 
@@ -254,3 +251,4 @@ if __name__ == "__main__":
     manager.stop()
     manager.robot.disconnect()
     thread.join()
+
