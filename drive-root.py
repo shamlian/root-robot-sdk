@@ -2,14 +2,14 @@
 
 from pyroot import Root
 
-char = ""
+command = ""
 try:
-    robot = Root(sniff_mode=True, ignore_crc_errors=True)
+    robot = Root()
     robot.wait_for_connect()
 
-    print("Press letter (f,b,l,r) to drive robot (t) to turn, (s) to stop, (u or d) raise pen up or down, (z) to get sensor states, (q) to quit")
-    while char != "q" and thread.is_alive():
-        char = input() # wait for keyboard input
+    print("Press letter (f,b,l,r) to drive robot (t) to turn, (s) to stop, (u or d) raise pen up or down, (z) to get sensor states, (i) for sniff, (q) to quit")
+    while command != "q" and robot.is_running():
+        command = input() # wait for keyboard input
         if command == "f":
             print ("Drive forward")
             robot.send_raw_ble([0x01, 0x04, 0x00, 0x00, 0x00, 0x00, 0x64, 0x00, 0x00, 0x00, 0x64, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xD1])
@@ -49,6 +49,8 @@ try:
         if command == "z":
             for s, v in robot.sensor.items():
                 print(s, v)
+        if command == 'i':
+            robot.set_sniff_mode(not robot.get_sniff_mode())
         if command == '`':
             robot.send_raw_ble([0x00, 0x00, 0x00, 0xa5, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x4d])
 
