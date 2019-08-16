@@ -32,8 +32,14 @@ class Root(object):
         self.ble_manager.robot.disconnect()
         self.ble_thread.join()
 
+    def send_with_crc(self, packet):
+        self.send_raw_ble(packet + crc8.crc8(packet).digest())
+
     def send_raw_ble(self, packet):
-        self.ble_manager.robot.tx_characteristic.write_value(packet)
+        if len(packet) == 20:
+            self.ble_manager.robot.tx_characteristic.write_value(packet)
+        else:
+            print('send_raw_ble: Packet wrong length.')
 
     def get_sniff_mode(self):
         return self.ble_manager.robot.sniff_mode
@@ -185,7 +191,7 @@ class Root(object):
                 else:
                     self.sensor[dev_name] = message
                     print('Unhandled message from ' + dev_name)
-                    print(message)
+                    print(list(message))
             else:
                 print('Unsupported device ' + str(device))
-                print(message)
+                print(list(message))
