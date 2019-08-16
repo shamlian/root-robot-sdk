@@ -5,6 +5,7 @@ import threading
 import crc8
 
 sniff_mode = True
+ignore_crc_errors = True
 
 # BLE UUID's
 root_identifier_uuid = '48c5d828-ac2a-442d-97a3-0c9822b04979'
@@ -86,6 +87,9 @@ class RootDevice(gatt.Device):
             print('C' if crc_fail else ' ', 'E' if event_fail else ' ', message)
 
         self.last_event = event
+
+        if crc_fail and not ignore_crc_errors:
+            return
 
         if device in supported_dev_msg:
             dev_name = supported_dev_msg[device]
