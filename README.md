@@ -13,19 +13,8 @@ Instructions (from the Linux command line):
 3) Install crc8 (sudo pip3 install crc8) to do message CRC checks
 4) If you're on a Raspberry Pi 3 or Zero W, follow the directions here so that the pi user has access to BLE: https://www.raspberrypi.org/forums/viewtopic.php?t=108581
 5) Clone this repo into your Gatt-Python folder: "git clone https://github.com/shamlian/PyRoot.git"
-6) Run the example by typing "python3 drive-root.py" and then, after it finds your Root, typing in command letters followed by the enter key
-
-"l" = Left
-"r" = Right
-"f" = Forward
-"b" = Back
-"s" = Stop
-"t" = Turn (input angle)
-"u" = Pen Up
-"d" = Pen Down
-"z" = Display sensor data
-"q" = Quit
+6) Run the example by typing "python3 drive-root.py" and then, after it finds your Root, typing in command letters followed by the enter key when prompted.
 
 The full Root API is here, if you want to add to this: https://github.com/RootRobotics/root-robot-ble-protocol
 
-Thanks to https://github.com/zlite for the original library, and to https://github.com/mogenson for his original work!
+Thanks to https://github.com/zlite for providing a jumping-off point, and to https://github.com/mogenson for his original work!
