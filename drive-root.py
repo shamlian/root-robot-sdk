@@ -9,44 +9,38 @@ try:
 
     print("Press letter (f,b,l,r) to drive robot (t) to turn, (s) to stop, (u or d) raise pen up or down, (z) to get sensor states, (i) for sniff, (q) to quit")
     while command != "q" and robot.is_running():
-        command = input() # wait for keyboard input
+        command = input('> ') # wait for keyboard input
         if command == "f":
             print ("Drive forward")
-            #robot.send_with_crc(bytes([0x01, 0x04, 0x00, 0x00, 0x00, 0x00, 0x64, 0x00, 0x00, 0x00, 0x64, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]))
-            robot.send_raw_ble([0x01, 0x04, 0x00, 0x00, 0x00, 0x00, 0x64, 0x00, 0x00, 0x00, 0x64, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xD1])
+            robot.set_motor_speeds(100, 100)
         if command == "b":
             print ("Drive backwards")
-            robot.send_raw_ble([0x01, 0x04, 0x00, 0xFF, 0xFF, 0xFF, 0x9C, 0xFF, 0xFF, 0xFF, 0x9C, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x71])
+            robot.set_motor_speeds(-100, -100)
         if command == "r":
             print ("Drive right")
-            robot.send_raw_ble([0x01, 0x04, 0x00, 0x00, 0x00, 0x00, 0x64, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x25])
+            robot.set_motor_speeds(100, 0)
         if command == "l":
             print ("Drive left")
-            robot.send_raw_ble([0x01, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x64, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x8A])
+            robot.set_motor_speeds(0, 100)
         if command == "s":
             print ("Stop")
-            robot.send_raw_ble([0x01, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x7E])
+            robot.set_motor_speeds(0, 0)
         if command == "u":
             print ("Pen up")
-            robot.send_raw_ble([0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00])
+            robot.set_marker_eraser_pos(robot.marker_up_eraser_up)
         if command == "d":
             print ("Pen down")
-            robot.send_raw_ble([0x02, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00])
+            robot.set_marker_eraser_pos(robot.marker_down_eraser_up)
         if command == "t":
-            print ("Enter turn rate (up to +-90):")
-            char = input()
-            rate = int(char)
+            rate = int(input('Enter turn rate (up to +-90): '))
             print ("Turning ", rate)
-            left = 0
-            right = 0
             if rate >= 0:
                 left = rate
-            if rate < 0:
+                right = 0
+            else:
+                left = 0
                 right = -1*rate
-            leftbytes = left.to_bytes(4,byteorder='big',signed=True)  # need to convert to byte string
-            rightbytes = right.to_bytes(4,byteorder='big',signed=True)
-            # note that we're not dynamically calculating the CRC at the end, so just leaving it 0 (unchecked)
-            robot.send_raw_ble([0x01, 0x04, 0x00, leftbytes[0], leftbytes[1], leftbytes[2], leftbytes[3], rightbytes[0], rightbytes[1], rightbytes[2], rightbytes[3], 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0])
+            robot.set_motor_speeds(left, right)
         if command == "z":
             for s, v in robot.sensor.items():
                 print(s, v)
@@ -60,4 +54,4 @@ except KeyboardInterrupt:
     pass
 
 print("Quitting")
-robot.stop()
+robot.disconnect()

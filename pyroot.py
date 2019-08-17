@@ -4,12 +4,14 @@ import gatt
 import threading
 import crc8
 import time
+import struct
 
 class Root(object):
     ble_manager = None
     ble_thread = None
     root_identifier_uuid = '48c5d828-ac2a-442d-97a3-0c9822b04979'
     sensor = None
+    inc = 0 # Handling of this is not thread-safe
 
     def __init__(self):
         self.ble_manager = self.BluetoothDeviceManager(adapter_name = 'hci0')
@@ -27,13 +29,101 @@ class Root(object):
     def is_running(self):
         return self.ble_thread.is_alive()
 
-    def stop(self):
+    def disconnect(self):
         self.ble_manager.stop()
         self.ble_manager.robot.disconnect()
         self.ble_thread.join()
 
-    def send_with_crc(self, packet):
+    def set_motor_speeds(self, left, right):
+        left = self.bound(left, -100, 100)
+        right = self.bound(right, -100, 100)
+        command = struct.pack('>BBBiiq', 1, 4, self.inc, left, right, 0)
+        self.send_with_crc_and_inc(command)
+
+    def set_left_motor_speed(self, left):
+        left = self.bound(left, -100, 100)
+        command = struct.pack('>BBBiiq', 1, 6, self.inc, left, 0, 0)
+        self.send_with_crc_and_inc(command)
+
+    def set_right_motor_speed(self, right):
+        right = self.bound(right, -100, 100)
+        command = struct.pack('>BBBiiq', 1, 7, self.inc, right, 0, 0)
+        self.send_with_crc_and_inc(command)
+
+    def drive_distance(self, distance):
+        inc = self.inc
+        command = struct.pack('>BBBiiq', 1, 8, inc, distance, 0, 0)
+        self.send_with_crc_and_inc(command)
+        return inc
+
+    def rotate_angle(self, angle):
+        inc = self.inc
+        command = struct.pack('>BBBiiq', 1, 12, inc, angle, 0, 0)
+        self.send_with_crc_and_inc(command)
+        return inc
+
+    #TODO: Use enums here and elsewhere
+    marker_up_eraser_up = 0
+    marker_down_eraser_up = 1
+    marker_up_eraser_down = 2
+
+    def set_marker_eraser_pos(self, pos):
+        pos = self.bound(pos, 0, 2)
+        inc = self.inc
+        command = struct.pack('>BBBbbhiq', 2, 0, inc, pos, 0, 0, 0, 0)
+        self.send_with_crc_and_inc(command)
+        return inc
+
+    led_animation_off = 0
+    led_animation_on = 1
+    led_animation_blink = 2
+    led_animation_spin = 3
+
+    def set_led_animation(self, state, red, green, blue):
+        state = self.bound(state, 0, 3)
+        command = struct.pack('>BBBbBBBiq', 3, 2, self.inc, state, red, green, blue, 0, 0)
+        self.send_with_crc_and_inc(command)
+
+    def get_color_sensor_data(self, bank, lighting, fmt):
+        bank = self.bound(bank, 0, 3)
+        lighting = self.bound(lighting, 0, 4)
+        fmt = self.bound(fmt, 0, 1)
+        inc = self.inc
+        command = struct.pack('>BBBbbbBiq', 4, 1, self.inc, bank, lighting, fmt, 0, 0, 0)
+        self.send_with_crc_and_inc(command)
+        return inc
+
+    def play_note(self, frequency, duration):
+        inc = self.inc
+        command = struct.pack('>BBBIHhq', 5, 0, inc, frequency, duration, 0, 0)
+        self.send_with_crc_and_inc(command)
+        return inc
+
+    def stop_note(self):
+        command = struct.pack('>BBBqq', 5, 1, self.inc, 0, 0)
+        self.send_with_crc_and_inc(command)
+
+    def say_phrase(self, phrase):
+        inc = self.inc
+        phrase = phrase.encode('utf-8')[0:16]
+        if len(phrase) < 16:
+            phrase += bytes(16-len(phrase))
+        command = struct.pack('>BBBs', 5, 4, inc, phrase)
+        self.send_with_crc_and_inc(command)
+        return inc
+
+    def get_battery_level(self):
+        inc = self.inc
+        command = struct.pack('>BBBqq', 14, 1, inc, 0, 0)
+        self.send_with_crc_and_inc(command)
+        return inc
+
+    def bound(self, value, low, high):
+        return min(high, max(low, value))
+
+    def send_with_crc_and_inc(self, packet):
         self.send_raw_ble(packet + crc8.crc8(packet).digest())
+        self.inc += 1
 
     def send_raw_ble(self, packet):
         if len(packet) == 20:
