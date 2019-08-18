@@ -52,6 +52,8 @@ class Root(object):
         return self.ble_thread.is_alive()
 
     def disconnect(self):
+        command = struct.pack('>BBBqq', 0, 6, 0, 0, 0)
+        self.tx_q.put((command, False))
         self.ble_manager.stop()
         self.ble_manager.robot.disconnect()
         self.ble_thread.join()
@@ -135,6 +137,24 @@ class Root(object):
     def bound(self, value, low, high):
         return min(high, max(low, value))
 
+    def calculate_timeout(self, message):
+        timeout = 1 # minimum to wait
+        msg_type = message[0:2]
+        if msg_type == bytes([1,8]): # drive distance
+            distance = struct.unpack('>i', message[3:7])
+            timeout += 1 + abs(*distance) / 10 # mm/s, drive speed
+        elif msg_type == bytes([1,12]): # rotate angle
+            angle = struct.unpack('>i', message[3:7])
+            timeout += 1 + abs(*angle) / 1000 # decideg/s
+        elif msg_type == bytes([2,0]): # set marker/eraser position
+            timeout += 1
+        elif msg_type == bytes([5,0]): # play note finished
+            duration = struct.unpack('>H', message[7:9])
+            timeout += duration / 1000 # ms/s
+        elif msg_type == bytes([5,1]): # say phrase finished
+            timeout += 16 # need to figure out how to calculate this
+        return timeout
+
     def sending_thread(self):
         inc = 0
         while self.ble_thread.is_alive():
@@ -153,9 +173,8 @@ class Root(object):
 
                 if expectResponse:
                     self.pending_lock.acquire()
-                    # need a timeout because responses are not guaranteed;
-                    #TODO: write a method to calculate good timeouts
-                    resp_expire = time.time() + 1
+                    # need a timeout because responses are not guaranteed.
+                    resp_expire = time.time() + self.calculate_timeout(packet)
                     self.pending_resp.append((packet[0:3], resp_expire))
                     self.pending_lock.release()
                 
@@ -290,7 +309,6 @@ class Root(object):
                         print('Unhandled event message from ' + dev_name)
                         print(list(message))
                 else: # response message
-                    print(self.pending_resp)
                     self.pending_lock.acquire()
                     header = message[0:3]
                     #TODO: Figure out a more pythonic way to do this
