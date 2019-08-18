@@ -47,8 +47,8 @@ try:
         if command == 'i':
             robot.set_sniff_mode(not robot.get_sniff_mode())
         if command == '`':
-            robot.send_raw_ble([0x00, 0x00, 0x00, 0xa5, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x4d])
-
+            robot.get_versions(robot.main_board)
+            robot.get_versions(robot.color_board)
 
 except KeyboardInterrupt:
     pass

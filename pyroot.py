@@ -55,6 +55,14 @@ class Root(object):
         self.ble_manager.robot.disconnect()
         self.ble_thread.join()
 
+    #TODO: Use enums here and elsewhere
+    main_board = 0
+    color_board = 1
+    def get_versions(self, board):
+        board = self.bound(board, 0, 1)
+        command = struct.pack('>BBBbbhiq', 0, 0, 0, board, 0, 0, 0, 0)
+        self.tx_q.put((command, True))
+
     def set_motor_speeds(self, left, right):
         left = self.bound(left, -100, 100)
         right = self.bound(right, -100, 100)
@@ -79,7 +87,6 @@ class Root(object):
         command = struct.pack('>BBBiiq', 1, 12, 0, angle, 0, 0)
         self.tx_q.put((command, True))
 
-    #TODO: Use enums here and elsewhere
     marker_up_eraser_up = 0
     marker_down_eraser_up = 1
     marker_up_eraser_down = 2
@@ -135,7 +142,7 @@ class Root(object):
                 packet, expectResponse = self.tx_q.get()
                 if expectResponse:
                     self.pending_lock.acquire()
-                    self.pending_resp.append(packet)
+                    self.pending_resp.append(packet[0:3])
                     self.pending_lock.release()
                 
                 packet = bytearray(packet)
@@ -149,7 +156,7 @@ class Root(object):
         else:
             print('send_raw_ble: Packet wrong length.')
 
-    supported_dev_msg = { 0: 'General',
+    supported_devices = { 0: 'General',
                           1: 'Motors',
                           2: 'MarkEraser',
                           4: 'Color',
@@ -158,6 +165,15 @@ class Root(object):
                           14: 'Battery',
                           17: 'Touch',
                           20: 'Cliff'}
+
+    event_messages = ( bytes([ 0,  4]),
+                       bytes([ 1, 29]),
+                       bytes([ 4,  2]),
+                       bytes([12,  0]),
+                       bytes([13,  0]),
+                       bytes([14,  0]),
+                       bytes([17,  0]),
+                       bytes([20,  0]) )
 
     def receiving_thread(self):
         last_event = 255
@@ -172,17 +188,20 @@ class Root(object):
                 crc     = message[19]
 
                 crc_fail = True if crc8.crc8(message).digest() != b'\x00' else False
-                event_fail = True if (event - last_event) & 0xFF != 1 else False
+
+                event_fail = False
+                if message[0:2] in event_messages:
+                    event_fail = True if (event - last_event) & 0xFF != 1
+                    last_event = event
+
                 if self.sniff_mode:
                     print('C' if crc_fail else ' ', 'E' if event_fail else ' ', list(message) )
-
-                last_event = event
 
                 if crc_fail and not self.ignore_crc_errors:
                     continue
 
-                if device in self.supported_dev_msg:
-                    dev_name = self.supported_dev_msg[device]
+                if message[0:2] in event_messages:
+                    dev_name = self.supported_devices[device]
 
                     if dev_name == 'Motors' and command == 29:
                         m = ['left', 'right', 'markeraser']
@@ -237,10 +256,19 @@ class Root(object):
                         self.sensor[dev_name] = True if state == 1 else False
                     else:
                         self.sensor[dev_name] = message
-                        print('Unhandled message from ' + dev_name)
+                        print('Unhandled event message from ' + dev_name)
                         print(list(message))
-                else:
-                    print('Unsupported device ' + str(device))
+                else # response message:
+                    self.pending_lock.acquire()
+                    header = message[0:3]
+                    if header in self.pending_resp:
+                        print('found it')
+                        self.pending_resp.remove(header)
+                    else:
+                        print('Warning: unexpected response for message', list(header))
+                    self.pending_lock.release()
+
+                    print('Unsupported message ' + str(device))
                     print(list(message))
 
     def get_sniff_mode(self):
