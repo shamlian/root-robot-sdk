@@ -128,7 +128,8 @@ class Root(object):
                     self.pending_lock.release()
                 
                 packet = bytearray(packet)
-                packet[3] = self.inc
+                packet[2] = self.inc
+                print(packet)
                 self.send_raw_ble(packet + crc8.crc8(packet).digest())
                 self.inc += 1
 
