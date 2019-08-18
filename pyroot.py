@@ -13,7 +13,6 @@ class Root(object):
     ble_thread = None
     root_identifier_uuid = '48c5d828-ac2a-442d-97a3-0c9822b04979'
     sensor = None
-    inc = 0
 
     tx_q = queue.SimpleQueue()
     rx_q = queue.SimpleQueue()
@@ -118,6 +117,7 @@ class Root(object):
         return min(high, max(low, value))
 
     def sending_thread(self):
+        inc = 0
         while self.ble_thread.is_alive():
             if not self.tx_q.empty():
                 packet, expectResponse = self.tx_q.get()
@@ -128,10 +128,10 @@ class Root(object):
                     self.pending_lock.release()
                 
                 packet = bytearray(packet)
-                packet[2] = self.inc
+                packet[2] = inc
                 print(packet)
                 self.send_raw_ble(packet + crc8.crc8(packet).digest())
-                self.inc += 1
+                inc += 1
 
     def send_raw_ble(self, packet):
         if len(packet) == 20:
