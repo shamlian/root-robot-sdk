@@ -46,6 +46,7 @@ class Root(object):
 
         threading.Thread(target = self.sending_thread).start()
         threading.Thread(target = self.receiving_thread).start()
+        threading.Thread(target = self.expiration_thread).start()
 
     def is_running(self):
         return self.ble_thread.is_alive()
@@ -137,6 +138,14 @@ class Root(object):
     def sending_thread(self):
         inc = 0
         while self.ble_thread.is_alive():
+
+            # block sending new commands until no responses pending
+            self.pending_lock.acquire()
+            pending_resp_len = len(self.pending_resp)
+            self.pending_lock.release()
+            if pending_resp_len > 0:
+                continue
+
             if not self.tx_q.empty():
                 packet, expectResponse = self.tx_q.get()
                 packet = bytearray(packet)
@@ -144,7 +153,10 @@ class Root(object):
 
                 if expectResponse:
                     self.pending_lock.acquire()
-                    self.pending_resp.append(packet[0:3])
+                    # need a timeout because responses are not guaranteed;
+                    #TODO: write a method to calculate good timeouts
+                    resp_expire = time.time() + 1
+                    self.pending_resp.append((packet[0:3], resp_expire))
                     self.pending_lock.release()
                 
                 self.send_raw_ble(packet + crc8.crc8(packet).digest())
@@ -154,9 +166,26 @@ class Root(object):
         if len(packet) == 20:
             self.ble_manager.robot.tx_characteristic.write_value(packet)
         else:
-            print('send_raw_ble: Packet wrong length.')
+            print('Error: send_raw_ble: Packet wrong length.')
         if self.sniff_mode:
             print('>>>', list(packet))
+
+    def expiration_thread(self):
+        while self.ble_thread.is_alive():
+            time.sleep(0.5)
+
+            self.pending_lock.acquire()
+            #TODO: Figure out a more pythonic way to do this
+            now = time.time()
+
+            for i in range(len(self.pending_resp)):
+                if self.pending_resp[i][1] <= now:
+                    print('Warning: message with header', list(self.pending_resp[i][0]), 'expired!')
+                    self.pending_resp[i] = None
+            while None in self.pending_resp:
+                self.pending_resp.remove(None)
+
+            self.pending_lock.release()
 
     supported_devices = { 0: 'General',
                           1: 'Motors',
@@ -264,15 +293,17 @@ class Root(object):
                     print(self.pending_resp)
                     self.pending_lock.acquire()
                     header = message[0:3]
-                    if header in self.pending_resp:
-                        print('found it')
-                        self.pending_resp.remove(header)
+                    #TODO: Figure out a more pythonic way to do this
+                    if header in list(zip(*self.pending_resp))[0]:
+                        for i in range(len(self.pending_resp)):
+                            if self.pending_resp[i][0] == header:
+                                break
+                        del self.pending_resp[i]
                     else:
                         print('Warning: unexpected response for message', list(header))
                     self.pending_lock.release()
 
-                    print('Unsupported message ' + str(device))
-                    print(list(message))
+                    print('Unsupported message ', list(message))
 
     def get_sniff_mode(self):
         return self.sniff_mode
