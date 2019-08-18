@@ -5,19 +5,29 @@ import threading
 import crc8
 import time
 import struct
+import queue
+import threading
 
 class Root(object):
     ble_manager = None
     ble_thread = None
     root_identifier_uuid = '48c5d828-ac2a-442d-97a3-0c9822b04979'
     sensor = None
-    inc = 0 # Handling of this is not thread-safe
+    inc = 0
+
+    tx_q = queue.SimpleQueue()
+    rx_q = queue.SimpleQueue()
+
+    pending_lock = threading.Lock()
+    pending_resp = []
 
     def __init__(self):
         self.ble_manager = BluetoothDeviceManager(adapter_name = 'hci0')
         self.ble_manager.start_discovery(service_uuids=[self.root_identifier_uuid])
         self.ble_thread = threading.Thread(target = self.ble_manager.run)
         self.ble_thread.start()
+
+        threading.Thread(target = self.sending_thread).start()
 
     def wait_for_connect(self):
         while self.ble_manager.robot is None:
@@ -37,30 +47,26 @@ class Root(object):
     def set_motor_speeds(self, left, right):
         left = self.bound(left, -100, 100)
         right = self.bound(right, -100, 100)
-        command = struct.pack('>BBBiiq', 1, 4, self.inc, left, right, 0)
-        self.send_with_crc_and_inc(command)
+        command = struct.pack('>BBBiiq', 1, 4, 0, left, right, 0)
+        self.tx_q.put((command, False))
 
     def set_left_motor_speed(self, left):
         left = self.bound(left, -100, 100)
-        command = struct.pack('>BBBiiq', 1, 6, self.inc, left, 0, 0)
-        self.send_with_crc_and_inc(command)
+        command = struct.pack('>BBBiiq', 1, 6, 0, left, 0, 0)
+        self.tx_q.put((command, False))
 
     def set_right_motor_speed(self, right):
         right = self.bound(right, -100, 100)
-        command = struct.pack('>BBBiiq', 1, 7, self.inc, right, 0, 0)
-        self.send_with_crc_and_inc(command)
+        command = struct.pack('>BBBiiq', 1, 7, 0, right, 0, 0)
+        self.tx_q.put((command, False))
 
     def drive_distance(self, distance):
-        inc = self.inc
-        command = struct.pack('>BBBiiq', 1, 8, inc, distance, 0, 0)
-        self.send_with_crc_and_inc(command)
-        return inc
+        command = struct.pack('>BBBiiq', 1, 8, 0, distance, 0, 0)
+        self.tx_q.put((command, True))
 
     def rotate_angle(self, angle):
-        inc = self.inc
-        command = struct.pack('>BBBiiq', 1, 12, inc, angle, 0, 0)
-        self.send_with_crc_and_inc(command)
-        return inc
+        command = struct.pack('>BBBiiq', 1, 12, 0, angle, 0, 0)
+        self.tx_q.put((command, True))
 
     #TODO: Use enums here and elsewhere
     marker_up_eraser_up = 0
@@ -69,10 +75,8 @@ class Root(object):
 
     def set_marker_eraser_pos(self, pos):
         pos = self.bound(pos, 0, 2)
-        inc = self.inc
-        command = struct.pack('>BBBbbhiq', 2, 0, inc, pos, 0, 0, 0, 0)
-        self.send_with_crc_and_inc(command)
-        return inc
+        command = struct.pack('>BBBbbhiq', 2, 0, 0, pos, 0, 0, 0, 0)
+        self.tx_q.put((command, True))
 
     led_animation_off = 0
     led_animation_on = 1
@@ -81,49 +85,52 @@ class Root(object):
 
     def set_led_animation(self, state, red, green, blue):
         state = self.bound(state, 0, 3)
-        command = struct.pack('>BBBbBBBiq', 3, 2, self.inc, state, red, green, blue, 0, 0)
-        self.send_with_crc_and_inc(command)
+        command = struct.pack('>BBBbBBBiq', 3, 2, 0, state, red, green, blue, 0, 0)
+        self.tx_q.put((command, False))
 
     def get_color_sensor_data(self, bank, lighting, fmt):
         bank = self.bound(bank, 0, 3)
         lighting = self.bound(lighting, 0, 4)
         fmt = self.bound(fmt, 0, 1)
-        inc = self.inc
-        command = struct.pack('>BBBbbbBiq', 4, 1, self.inc, bank, lighting, fmt, 0, 0, 0)
-        self.send_with_crc_and_inc(command)
-        return inc
+        command = struct.pack('>BBBbbbBiq', 4, 1, 0, bank, lighting, fmt, 0, 0, 0)
+        self.tx_q.put((command, True))
 
     def play_note(self, frequency, duration):
-        inc = self.inc
-        command = struct.pack('>BBBIHhq', 5, 0, inc, frequency, duration, 0, 0)
-        self.send_with_crc_and_inc(command)
-        return inc
+        command = struct.pack('>BBBIHhq', 5, 0, 0, frequency, duration, 0, 0)
+        self.tx_q.put((command, True))
 
     def stop_note(self):
-        command = struct.pack('>BBBqq', 5, 1, self.inc, 0, 0)
-        self.send_with_crc_and_inc(command)
+        command = struct.pack('>BBBqq', 5, 1, 0, 0, 0)
+        self.tx_q.put((command, False))
 
     def say_phrase(self, phrase):
-        inc = self.inc
         phrase = phrase.encode('utf-8')[0:16]
         if len(phrase) < 16:
             phrase += bytes(16-len(phrase))
-        command = struct.pack('>BBBs', 5, 4, inc, phrase)
-        self.send_with_crc_and_inc(command)
-        return inc
+        command = struct.pack('>BBBs', 5, 4, 0, phrase)
+        self.tx_q.put((command, True))
 
     def get_battery_level(self):
-        inc = self.inc
-        command = struct.pack('>BBBqq', 14, 1, inc, 0, 0)
-        self.send_with_crc_and_inc(command)
-        return inc
+        command = struct.pack('>BBBqq', 14, 1, 0, 0, 0)
+        self.tx_q.put((command, True))
 
     def bound(self, value, low, high):
         return min(high, max(low, value))
 
-    def send_with_crc_and_inc(self, packet):
-        self.send_raw_ble(packet + crc8.crc8(packet).digest())
-        self.inc += 1
+    def sending_thread(self):
+        while self.ble_thread.is_alive():
+            if not self.tx_q.empty():
+                packet, expectResponse = self.tx_q.get()
+                print(expectResponse)
+                if expectResponse:
+                    self.pending_lock.acquire()
+                    pending_resp.append(packet)
+                    self.pending_lock.release()
+                
+                packet = bytearray(packet)
+                packet[3] = self.inc
+                self.send_raw_ble(packet + crc8.crc8(packet).digest())
+                self.inc += 1
 
     def send_raw_ble(self, packet):
         if len(packet) == 20:
@@ -152,21 +159,21 @@ class RootDevice(gatt.Device):
     rx_characteristic_uuid = '6e400003-b5a3-f393-e0a9-e50e24dcca9e' # Notify
 
     supported_dev_msg = { 0: 'General',
-                            1: 'Motors',
-                            2: 'MarkEraser',
-                            4: 'Color',
-                            12: 'Bumper',
-                            13: 'Light',
-                            14: 'Battery',
-                            17: 'Touch',
-                            20: 'Cliff'}
+                          1: 'Motors',
+                          2: 'MarkEraser',
+                          4: 'Color',
+                          12: 'Bumper',
+                          13: 'Light',
+                          14: 'Battery',
+                          17: 'Touch',
+                          20: 'Cliff'}
     # Sensor States
     sensor = {'Color':   None,
-                'Bumper':  None,
-                'Light':   None,
-                'Battery': None,
-                'Touch':   None,
-                'Cliff':   None}
+              'Bumper':  None,
+              'Light':   None,
+              'Battery': None,
+              'Touch':   None,
+              'Cliff':   None}
 
     sniff_mode = False
     ignore_crc_errors = False
