@@ -12,13 +12,23 @@ class Root(object):
     ble_manager = None
     ble_thread = None
     root_identifier_uuid = '48c5d828-ac2a-442d-97a3-0c9822b04979'
-    sensor = None
 
     tx_q = queue.SimpleQueue()
-    rx_q = queue.SimpleQueue()
+    rx_q = None # set up in RootDevice class
 
     pending_lock = threading.Lock()
     pending_resp = []
+
+    # Sensor States
+    sensor = {'Color':   None,
+              'Bumper':  None,
+              'Light':   None,
+              'Battery': None,
+              'Touch':   None,
+              'Cliff':   None}
+
+    sniff_mode = False
+    ignore_crc_errors = False
 
     def __init__(self):
         self.ble_manager = BluetoothDeviceManager(adapter_name = 'hci0')
@@ -26,14 +36,16 @@ class Root(object):
         self.ble_thread = threading.Thread(target = self.ble_manager.run)
         self.ble_thread.start()
 
-        threading.Thread(target = self.sending_thread).start()
-
     def wait_for_connect(self):
         while self.ble_manager.robot is None:
             time.sleep(0.1) # wait for a root robot to be discovered
         while not self.ble_manager.robot.service_resolution_complete:
             time.sleep(0.1) # allow services to resolve before continuing
-        self.sensor = self.ble_manager.robot.sensor
+
+        self.rx_q = self.ble_manager.robot.rx_q
+
+        threading.Thread(target = self.sending_thread).start()
+        threading.Thread(target = self.receiving_thread).start()
 
     def is_running(self):
         return self.ble_thread.is_alive()
@@ -121,15 +133,13 @@ class Root(object):
         while self.ble_thread.is_alive():
             if not self.tx_q.empty():
                 packet, expectResponse = self.tx_q.get()
-                print(expectResponse)
                 if expectResponse:
                     self.pending_lock.acquire()
-                    pending_resp.append(packet)
+                    self.pending_resp.append(packet)
                     self.pending_lock.release()
                 
                 packet = bytearray(packet)
                 packet[2] = inc
-                print(packet)
                 self.send_raw_ble(packet + crc8.crc8(packet).digest())
                 inc += 1
 
@@ -139,11 +149,105 @@ class Root(object):
         else:
             print('send_raw_ble: Packet wrong length.')
 
+    supported_dev_msg = { 0: 'General',
+                          1: 'Motors',
+                          2: 'MarkEraser',
+                          4: 'Color',
+                          12: 'Bumper',
+                          13: 'Light',
+                          14: 'Battery',
+                          17: 'Touch',
+                          20: 'Cliff'}
+
+    def receiving_thread(self):
+        last_event = 255
+        while self.ble_thread.is_alive():
+            if self.rx_q is not None and not self.rx_q.empty():
+                message = self.rx_q.get()
+
+                device  = message[0]
+                command = message[1]
+                event   = message[2]
+                state   = message[7]
+                crc     = message[19]
+
+                crc_fail = True if crc8.crc8(message).digest() != b'\x00' else False
+                event_fail = True if (event - last_event) & 0xFF != 1 else False
+                if self.sniff_mode:
+                    print('C' if crc_fail else ' ', 'E' if event_fail else ' ', list(message) )
+
+                last_event = event
+
+                if crc_fail and not self.ignore_crc_errors:
+                    continue
+
+                if device in self.supported_dev_msg:
+                    dev_name = self.supported_dev_msg[device]
+
+                    if dev_name == 'Motors' and command == 29:
+                        m = ['left', 'right', 'markeraser']
+                        c = ['none', 'overcurrent', 'undercurrent', 'underspeed', 'saturated', 'timeout']
+                        print("Stall: {} motor {}.".format(m[state], c[message[8]]))
+
+                    elif dev_name == 'Color' and command == 2:
+                        if self.sensor[dev_name] is None:
+                            self.sensor[dev_name] = [0]*32
+                        i = 0
+                        for byte in message[3:19]:
+                            self.sensor[dev_name][i*2+0] = (byte & 0xF0) >> 4
+                            self.sensor[dev_name][i*2+1] = byte & 0x0F
+                            i += 1
+
+                    elif dev_name == 'Bumper' and command == 0:
+                        if state == 0:
+                            self.sensor[dev_name] = (False, False)
+                        elif state == 0x40:
+                            self.sensor[dev_name] = (False, True)
+                        elif state == 0x80:
+                            self.sensor[dev_name] = (True, False)
+                        elif state == 0xC0:
+                            self.sensor[dev_name] = (True, True)
+                        else:
+                            self.sensor[dev_name] = message
+
+                    elif dev_name == 'Light' and command == 0:
+                        if state == 4:
+                            self.sensor[dev_name] = (False, False)
+                        elif state == 5:
+                            self.sensor[dev_name] = (False, True)
+                        elif state == 6:
+                            self.sensor[dev_name] = (True, False)
+                        elif state == 7:
+                            self.sensor[dev_name] = (True, True)
+                        else:
+                            self.sensor[dev_name] = message
+
+                    elif dev_name == 'Battery' and command == 0:
+                        self.sensor[dev_name] = message[9]
+
+                    elif dev_name == 'Touch' and command == 0:
+                        if self.sensor[dev_name] is None:
+                            self.sensor[dev_name] = {}
+                        self.sensor[dev_name]['FL'] = True if state & 0x80 == 0x80 else False
+                        self.sensor[dev_name]['FR'] = True if state & 0x40 == 0x40 else False
+                        self.sensor[dev_name]['RR'] = True if state & 0x20 == 0x20 else False
+                        self.sensor[dev_name]['RL'] = True if state & 0x10 == 0x10 else False
+
+                    elif dev_name == 'Cliff' and command == 0:
+                        self.sensor[dev_name] = True if state == 1 else False
+                    else:
+                        self.sensor[dev_name] = message
+                        print('Unhandled message from ' + dev_name)
+                        print(list(message))
+                else:
+                    print('Unsupported device ' + str(device))
+                    print(list(message))
+
     def get_sniff_mode(self):
-        return self.ble_manager.robot.sniff_mode
+        return self.sniff_mode
 
     def set_sniff_mode(self, mode):
-        self.ble_manager.robot.sniff_mode = True if mode else False
+        self.sniff_mode = True if mode else False
 
 class BluetoothDeviceManager(gatt.DeviceManager):
     robot = None # root robot device
@@ -158,29 +262,10 @@ class RootDevice(gatt.Device):
     uart_service_uuid = '6e400001-b5a3-f393-e0a9-e50e24dcca9e'
     tx_characteristic_uuid = '6e400002-b5a3-f393-e0a9-e50e24dcca9e' # Write
     rx_characteristic_uuid = '6e400003-b5a3-f393-e0a9-e50e24dcca9e' # Notify
+    rx_q = queue.SimpleQueue()
 
-    supported_dev_msg = { 0: 'General',
-                          1: 'Motors',
-                          2: 'MarkEraser',
-                          4: 'Color',
-                          12: 'Bumper',
-                          13: 'Light',
-                          14: 'Battery',
-                          17: 'Touch',
-                          20: 'Cliff'}
-    # Sensor States
-    sensor = {'Color':   None,
-              'Bumper':  None,
-              'Light':   None,
-              'Battery': None,
-              'Touch':   None,
-              'Cliff':   None}
-
-    sniff_mode = False
-    ignore_crc_errors = False
     service_resolution_complete = False
 
-    last_event = 255
     def connect_succeeded(self):
         super().connect_succeeded()
         print("[%s] Connected" % (self.mac_address))
@@ -214,82 +299,4 @@ class RootDevice(gatt.Device):
         self.service_resolution_complete = True
 
     def characteristic_value_updated(self, characteristic, value):
-        message = value
-
-        device  = message[0]
-        command = message[1]
-        event   = message[2]
-        state   = message[7]
-        crc     = message[19]
-
-        crc_fail = True if crc8.crc8(value).digest() != b'\x00' else False
-        event_fail = True if (event - self.last_event) & 0xFF != 1 else False
-        if self.sniff_mode:
-            print('C' if crc_fail else ' ', 'E' if event_fail else ' ', list(message) )
-
-        self.last_event = event
-
-        if crc_fail and not self.ignore_crc_errors:
-            return
-
-        if device in self.supported_dev_msg:
-            dev_name = self.supported_dev_msg[device]
-
-            if dev_name == 'Motors' and command == 29:
-                m = ['left', 'right', 'markeraser']
-                c = ['none', 'overcurrent', 'undercurrent', 'underspeed', 'saturated', 'timeout']
-                print("Stall: {} motor {}.".format(m[state], c[message[8]]))
-
-            elif dev_name == 'Color' and command == 2:
-                if self.sensor[dev_name] is None:
-                    self.sensor[dev_name] = [0]*32
-                i = 0
-                for byte in message[3:19]:
-                    self.sensor[dev_name][i*2+0] = (byte & 0xF0) >> 4
-                    self.sensor[dev_name][i*2+1] = byte & 0x0F
-                    i += 1
-
-            elif dev_name == 'Bumper' and command == 0:
-                if state == 0:
-                    self.sensor[dev_name] = (False, False)
-                elif state == 0x40:
-                    self.sensor[dev_name] = (False, True)
-                elif state == 0x80:
-                    self.sensor[dev_name] = (True, False)
-                elif state == 0xC0:
-                    self.sensor[dev_name] = (True, True)
-                else:
-                    self.sensor[dev_name] = message
-
-            elif dev_name == 'Light' and command == 0:
-                if state == 4:
-                    self.sensor[dev_name] = (False, False)
-                elif state == 5:
-                    self.sensor[dev_name] = (False, True)
-                elif state == 6:
-                    self.sensor[dev_name] = (True, False)
-                elif state == 7:
-                    self.sensor[dev_name] = (True, True)
-                else:
-                    self.sensor[dev_name] = message
-
-            elif dev_name == 'Battery' and command == 0:
-                self.sensor[dev_name] = message[9]
-
-            elif dev_name == 'Touch' and command == 0:
-                if self.sensor[dev_name] is None:
-                    self.sensor[dev_name] = {}
-                self.sensor[dev_name]['FL'] = True if state & 0x80 == 0x80 else False
-                self.sensor[dev_name]['FR'] = True if state & 0x40 == 0x40 else False
-                self.sensor[dev_name]['RR'] = True if state & 0x20 == 0x20 else False
-                self.sensor[dev_name]['RL'] = True if state & 0x10 == 0x10 else False
-
-            elif dev_name == 'Cliff' and command == 0:
-                self.sensor[dev_name] = True if state == 1 else False
-            else:
-                self.sensor[dev_name] = message
-                print('Unhandled message from ' + dev_name)
-                print(list(message))
-        else:
-            print('Unsupported device ' + str(device))
-            print(list(message))
+        self.rx_q.put(value)
