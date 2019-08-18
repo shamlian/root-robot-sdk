@@ -19,14 +19,6 @@ class Root(object):
     pending_lock = threading.Lock()
     pending_resp = []
 
-    # Sensor States
-    sensor = {'Color':   None,
-              'Bumper':  None,
-              'Light':   None,
-              'Battery': None,
-              'Touch':   None,
-              'Cliff':   None}
-
     sniff_mode = False
     ignore_crc_errors = False
 
@@ -48,6 +40,8 @@ class Root(object):
         threading.Thread(target = self.receiving_thread).start()
         threading.Thread(target = self.expiration_thread).start()
 
+        self.initialize_state()
+
     def is_running(self):
         return self.ble_thread.is_alive()
 
@@ -58,11 +52,58 @@ class Root(object):
         self.ble_manager.robot.disconnect()
         self.ble_thread.join()
 
+    # Robot States
+    state = {}
+
+    def initialize_state(self):
+        for devnum, device in self.supported_devices.items():
+            self.state[device] = None
+
+        self.disable_events()
+        time.sleep(1) # not sure why this is necessary
+
+        self.get_versions(self.main_board)
+        self.get_versions(self.color_board)
+
+        timeout = time.time() + 5
+        blocked = True
+        while time.time() < timeout and blocked:
+            try:
+                if self.state['General'][self.main_board] < 1.011:
+                    self.ignore_crc_errors = True
+                blocked = False
+            except TypeError:
+                time.sleep(0.1)
+        if blocked == True:
+                print('Warning: could not get main board version')
+
+        self.get_name()
+        self.get_serial_number()
+        self.get_battery_level()
+
+        self.enable_events()
+
     #TODO: Use enums here and elsewhere
     main_board = 0xA5
     color_board = 0xC6
     def get_versions(self, board):
         command = struct.pack('>BBBBbhiq', 0, 0, 0, board, 0, 0, 0, 0)
+        self.tx_q.put((command, True))
+
+    def get_name(self):
+        command = struct.pack('>BBBqq', 0, 2, 0, 0, 0)
+        self.tx_q.put((command, True))
+
+    def enable_events(self): #TODO: Make smarter
+        command = struct.pack('>BBBQQ', 0, 7, 0, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF)
+        self.tx_q.put((command, False))
+
+    def disable_events(self): #TODO: Make smarter
+        command = struct.pack('>BBBQQ', 0, 8, 0, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF)
+        self.tx_q.put((command, False))
+
+    def get_serial_number(self):
+        command = struct.pack('>BBBqq', 0, 14, 0, 0, 0)
         self.tx_q.put((command, True))
 
     def set_motor_speeds(self, left, right):
@@ -155,15 +196,18 @@ class Root(object):
             timeout += 16 # need to figure out how to calculate this
         return timeout
 
+    def responses_pending(self):
+        self.pending_lock.acquire()
+        pending_resp_len = len(self.pending_resp)
+        self.pending_lock.release()
+        return True if pending_resp_len > 0 else False
+
     def sending_thread(self):
         inc = 0
         while self.ble_thread.is_alive():
 
             # block sending new commands until no responses pending
-            self.pending_lock.acquire()
-            pending_resp_len = len(self.pending_resp)
-            self.pending_lock.release()
-            if pending_resp_len > 0:
+            if self.responses_pending():
                 continue
 
             if not self.tx_q.empty():
@@ -225,6 +269,11 @@ class Root(object):
                        bytes([17,  0]),
                        bytes([20,  0]) )
 
+    resp_msg_acked = ( bytes([1,  8]),
+                       bytes([1, 12]),
+                       bytes([5,  0]),
+                       bytes([5,  4]) )
+
     def receiving_thread(self):
         last_event = 255
         while self.ble_thread.is_alive():
@@ -233,7 +282,7 @@ class Root(object):
 
                 device  = message[0]
                 command = message[1]
-                event   = message[2]
+                id      = message[2]
                 state   = message[7]
                 crc     = message[19]
 
@@ -241,8 +290,8 @@ class Root(object):
 
                 event_fail = None
                 if message[0:2] in self.event_messages:
-                    event_fail = True if (event - last_event) & 0xFF != 1 else False
-                    last_event = event
+                    event_fail = True if (id - last_event) & 0xFF != 1 else False
+                    last_event = id
 
                 if self.sniff_mode:
                     print('C' if crc_fail else ' ', 'E' if event_fail else ' ', list(message) )
@@ -250,8 +299,9 @@ class Root(object):
                 if crc_fail and not self.ignore_crc_errors:
                     continue
 
+                dev_name = self.supported_devices[device] if device in self.supported_devices else None
+
                 if message[0:2] in self.event_messages:
-                    dev_name = self.supported_devices[device]
 
                     if dev_name == 'Motors' and command == 29:
                         m = ['left', 'right', 'markeraser']
@@ -259,53 +309,54 @@ class Root(object):
                         print("Stall: {} motor {}.".format(m[state], c[message[8]]))
 
                     elif dev_name == 'Color' and command == 2:
-                        if self.sensor[dev_name] is None:
-                            self.sensor[dev_name] = [0]*32
+                        if self.state[dev_name] is None:
+                            self.state[dev_name] = [0]*32
                         i = 0
                         for byte in message[3:19]:
-                            self.sensor[dev_name][i*2+0] = (byte & 0xF0) >> 4
-                            self.sensor[dev_name][i*2+1] = byte & 0x0F
+                            self.state[dev_name][i*2+0] = (byte & 0xF0) >> 4
+                            self.state[dev_name][i*2+1] = byte & 0x0F
                             i += 1
 
                     elif dev_name == 'Bumper' and command == 0:
                         if state == 0:
-                            self.sensor[dev_name] = (False, False)
+                            self.state[dev_name] = (False, False)
                         elif state == 0x40:
-                            self.sensor[dev_name] = (False, True)
+                            self.state[dev_name] = (False, True)
                         elif state == 0x80:
-                            self.sensor[dev_name] = (True, False)
+                            self.state[dev_name] = (True, False)
                         elif state == 0xC0:
-                            self.sensor[dev_name] = (True, True)
+                            self.state[dev_name] = (True, True)
                         else:
-                            self.sensor[dev_name] = message
+                            self.state[dev_name] = message
 
                     elif dev_name == 'Light' and command == 0:
                         if state == 4:
-                            self.sensor[dev_name] = (False, False)
+                            self.state[dev_name] = (False, False)
                         elif state == 5:
-                            self.sensor[dev_name] = (False, True)
+                            self.state[dev_name] = (False, True)
                         elif state == 6:
-                            self.sensor[dev_name] = (True, False)
+                            self.state[dev_name] = (True, False)
                         elif state == 7:
-                            self.sensor[dev_name] = (True, True)
+                            self.state[dev_name] = (True, True)
                         else:
-                            self.sensor[dev_name] = message
+                            self.state[dev_name] = message
 
                     elif dev_name == 'Battery' and command == 0:
-                        self.sensor[dev_name] = message[9]
+                        self.state[dev_name] = message[9]
 
                     elif dev_name == 'Touch' and command == 0:
-                        if self.sensor[dev_name] is None:
-                            self.sensor[dev_name] = {}
-                        self.sensor[dev_name]['FL'] = True if state & 0x80 == 0x80 else False
-                        self.sensor[dev_name]['FR'] = True if state & 0x40 == 0x40 else False
-                        self.sensor[dev_name]['RR'] = True if state & 0x20 == 0x20 else False
-                        self.sensor[dev_name]['RL'] = True if state & 0x10 == 0x10 else False
+                        if self.state[dev_name] is None:
+                            self.state[dev_name] = {}
+                        self.state[dev_name]['FL'] = True if state & 0x80 == 0x80 else False
+                        self.state[dev_name]['FR'] = True if state & 0x40 == 0x40 else False
+                        self.state[dev_name]['RR'] = True if state & 0x20 == 0x20 else False
+                        self.state[dev_name]['RL'] = True if state & 0x10 == 0x10 else False
 
                     elif dev_name == 'Cliff' and command == 0:
-                        self.sensor[dev_name] = True if state == 1 else False
+                        self.state[dev_name] = True if state == 1 else False
+
                     else:
-                        self.sensor[dev_name] = message
+                        self.state[dev_name] = message
                         print('Unhandled event message from ' + dev_name)
                         print(list(message))
                 else: # response message
@@ -321,7 +372,32 @@ class Root(object):
                         print('Warning: unexpected response for message', list(header))
                     self.pending_lock.release()
 
-                    print('Unsupported message ', list(message))
+                    msg_type = message[0:2]
+                    if msg_type in self.resp_msg_acked:
+                        pass # no side effects
+                    elif dev_name == 'General':
+                        if self.state[dev_name] is None:
+                            self.state[dev_name] = {}
+                        if command == 0: # get versions
+                            self.state[dev_name][message[3]] = message[4] + message[5]/1000
+                        elif command == 2:
+                            self.state[dev_name]['Name'] = str(message[3:19])
+                        elif command == 14:
+                            self.state[dev_name]['Serial'] = str(message[3:19])
+                    elif dev_name == 'MarkEraser' and command == 0: # set marker/eraser position
+                        pos = message[3]
+                        if pos == 0:
+                            self.state[dev_name] = 'marker_up_eraser_up'
+                        elif pos == 1:
+                            self.state[dev_name] = 'marker_down_eraser_up'
+                        elif pos == 2:
+                            self.state[dev_name] = 'marker_up_eraser_down'
+                        else:
+                            self.state[dev_name] = pos # undefined
+                    elif dev_name == 'Battery' and command == 1: # get battery level
+                        self.state[dev_name] = message[9]
+                    else:
+                        print('Unsupported message ', list(message))
 
     def get_sniff_mode(self):
         return self.sniff_mode

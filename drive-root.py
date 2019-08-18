@@ -8,7 +8,7 @@ try:
     robot = Root()
     robot.wait_for_connect()
 
-    print("Press letter (f,b,l,r) to drive robot (t) to turn, (s) to stop, (u or d) raise pen up or down, (m {val}) to move, (a{val}) to rotate, (z) to get sensor states, (i) for sniff, (q) to quit")
+    print("Press letter (f,b,l,r) to drive robot (t) to turn, (s) to stop, (u or d) raise pen up or down, (m {val}) to move, (a{val}) to rotate, (z) to get robot states, (i) for sniff, (q) to quit")
     while command != "q" and robot.is_running():
         command = input('> ') # wait for keyboard input
         if command == "f":
@@ -47,13 +47,14 @@ try:
             except:
                 print("Bad command")
         if command == "z":
-            for s, v in robot.sensor.items():
+            for s, v in robot.state.items():
                 print(s, v)
         if command == 'i':
             robot.set_sniff_mode(not robot.get_sniff_mode())
         if command == '`':
             robot.get_versions(robot.main_board)
             robot.get_versions(robot.color_board)
+            robot.get_battery_level()
 
 except KeyboardInterrupt:
     pass
