@@ -56,11 +56,10 @@ class Root(object):
         self.ble_thread.join()
 
     #TODO: Use enums here and elsewhere
-    main_board = 0
-    color_board = 1
+    main_board = 0xA5
+    color_board = 0xC6
     def get_versions(self, board):
-        board = self.bound(board, 0, 1)
-        command = struct.pack('>BBBbbhiq', 0, 0, 0, board, 0, 0, 0, 0)
+        command = struct.pack('>BBBBbhiq', 0, 0, 0, board, 0, 0, 0, 0)
         self.tx_q.put((command, True))
 
     def set_motor_speeds(self, left, right):
@@ -140,13 +139,14 @@ class Root(object):
         while self.ble_thread.is_alive():
             if not self.tx_q.empty():
                 packet, expectResponse = self.tx_q.get()
+                packet = bytearray(packet)
+                packet[2] = inc
+
                 if expectResponse:
                     self.pending_lock.acquire()
                     self.pending_resp.append(packet[0:3])
                     self.pending_lock.release()
                 
-                packet = bytearray(packet)
-                packet[2] = inc
                 self.send_raw_ble(packet + crc8.crc8(packet).digest())
                 inc += 1
 
@@ -155,6 +155,8 @@ class Root(object):
             self.ble_manager.robot.tx_characteristic.write_value(packet)
         else:
             print('send_raw_ble: Packet wrong length.')
+        if self.sniff_mode:
+            print('>>>', list(packet))
 
     supported_devices = { 0: 'General',
                           1: 'Motors',
@@ -189,9 +191,9 @@ class Root(object):
 
                 crc_fail = True if crc8.crc8(message).digest() != b'\x00' else False
 
-                event_fail = False
-                if message[0:2] in event_messages:
-                    event_fail = True if (event - last_event) & 0xFF != 1
+                event_fail = None
+                if message[0:2] in self.event_messages:
+                    event_fail = True if (event - last_event) & 0xFF != 1 else False
                     last_event = event
 
                 if self.sniff_mode:
@@ -200,7 +202,7 @@ class Root(object):
                 if crc_fail and not self.ignore_crc_errors:
                     continue
 
-                if message[0:2] in event_messages:
+                if message[0:2] in self.event_messages:
                     dev_name = self.supported_devices[device]
 
                     if dev_name == 'Motors' and command == 29:
@@ -258,7 +260,8 @@ class Root(object):
                         self.sensor[dev_name] = message
                         print('Unhandled event message from ' + dev_name)
                         print(list(message))
-                else # response message:
+                else: # response message
+                    print(self.pending_resp)
                     self.pending_lock.acquire()
                     header = message[0:3]
                     if header in self.pending_resp:

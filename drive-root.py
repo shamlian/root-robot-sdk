@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 from pyroot import Root
+import time
 
 command = ""
 try:
@@ -48,6 +49,7 @@ try:
             robot.set_sniff_mode(not robot.get_sniff_mode())
         if command == '`':
             robot.get_versions(robot.main_board)
+            time.sleep(2)
             robot.get_versions(robot.color_board)
 
 except KeyboardInterrupt:
