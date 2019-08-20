@@ -197,6 +197,7 @@ class Root(object):
 
     def calculate_timeout(self, message):
         timeout = 1 # minimum to wait
+        timeout += 3
         msg_type = message[0:2]
         if msg_type == bytes([1,8]): # drive distance
             distance = struct.unpack('>i', message[3:7])
@@ -241,6 +242,8 @@ class Root(object):
                 
                 self.send_raw_ble(packet + crc8.crc8(packet).digest())
                 inc += 1
+               if inc > 255:
+                   inc = 0
 
     def send_raw_ble(self, packet):
         if len(packet) == 20:
