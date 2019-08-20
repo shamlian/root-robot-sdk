@@ -242,8 +242,8 @@ class Root(object):
                 
                 self.send_raw_ble(packet + crc8.crc8(packet).digest())
                 inc += 1
-               if inc > 255:
-                   inc = 0
+                if inc > 255:
+                    inc = 0
 
     def send_raw_ble(self, packet):
         if len(packet) == 20:
