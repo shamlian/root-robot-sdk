@@ -7,6 +7,7 @@ import time
 import struct
 import queue
 import threading
+import numpy
 
 class Root(object):
     ble_manager = None
@@ -129,6 +130,22 @@ class Root(object):
     def rotate_angle(self, angle):
         command = struct.pack('>BBBiiq', 1, 12, 0, angle, 0, 0)
         self.tx_q.put((command, True))
+
+    last_coord = (0+0j)
+    last_theta = 90.0
+    def drive_complex(self, coord):
+        vector = (coord - self.last_coord)
+        dist   = numpy.linalg.norm(vector)
+        theta  = numpy.angle(vector, deg=True)
+        turn = ((self.last_theta - theta + 180) % 360) - 180
+        print('turn', turn, ' drive', dist)
+        self.rotate_angle(int(turn*10))
+        self.drive_distance(int(dist))
+
+        #BUG: this will techincally drift over time if we don't recompute where we land (due to rounding)
+        self.last_coord = coord
+        self.last_theta = theta
+
 
     marker_up_eraser_up = 0
     marker_down_eraser_up = 1
@@ -303,7 +320,16 @@ class Root(object):
 
                 if message[0:2] in self.event_messages:
 
-                    if dev_name == 'Motors' and command == 29:
+                    if dev_name == 'General' and command == 4: # stop project
+                        print('Warning: Stop Project!')
+                        # purge all pending transmissions
+                        while not self.tx_q.empty():
+                            packet, expectResponse = self.tx_q.get()
+                        # stop waiting for any responses
+                            self.pending_lock.acquire()
+                            self.pending_resp.clear()
+                            self.pending_lock.release()
+                    elif dev_name == 'Motors' and command == 29: # motor stall
                         m = ['left', 'right', 'markeraser']
                         c = ['none', 'overcurrent', 'undercurrent', 'underspeed', 'saturated', 'timeout']
                         print("Stall: {} motor {}.".format(m[state], c[message[8]]))
@@ -380,9 +406,9 @@ class Root(object):
                             self.state[dev_name] = {}
                         if command == 0: # get versions
                             self.state[dev_name][message[3]] = message[4] + message[5]/1000
-                        elif command == 2:
+                        elif command == 2: # get name
                             self.state[dev_name]['Name'] = str(message[3:19])
-                        elif command == 14:
+                        elif command == 14: # get serial number
                             self.state[dev_name]['Serial'] = str(message[3:19])
                     elif dev_name == 'MarkEraser' and command == 0: # set marker/eraser position
                         pos = message[3]
