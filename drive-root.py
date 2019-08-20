@@ -51,6 +51,10 @@ try:
                 print(s, v)
         if command == 'i':
             robot.set_sniff_mode(not robot.get_sniff_mode())
+        if command == ',':
+            for i in range(4):
+                robot.drive_distance(100)
+                robot.rotate_angle(900)
         if command == '`':
             robot.get_versions(robot.main_board)
             robot.get_versions(robot.color_board)
