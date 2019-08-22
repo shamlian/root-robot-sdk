@@ -397,13 +397,16 @@ class Root(object):
                     self.pending_lock.acquire()
                     header = message[0:3]
                     #TODO: Figure out a more pythonic way to do this
-                    if header in list(zip(*self.pending_resp))[0]:
-                        for i in range(len(self.pending_resp)):
-                            if self.pending_resp[i][0] == header:
-                                break
-                        del self.pending_resp[i]
-                    else:
-                        print('Warning: unexpected response for message', list(header))
+                    try:
+                        if header in list(zip(*self.pending_resp))[0]:
+                            for i in range(len(self.pending_resp)):
+                                if self.pending_resp[i][0] == header:
+                                    break
+                            del self.pending_resp[i]
+                        else:
+                            print('Warning: unexpected response for message', list(header))
+                    except IndexError:
+                        print('Warning: unexpected response with empty list for message', list(header))
                     self.pending_lock.release()
 
                     msg_type = message[0:2]
