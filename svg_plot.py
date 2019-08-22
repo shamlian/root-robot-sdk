@@ -47,6 +47,8 @@ try:
                 line_list = [svgpathtools.Line(pts[i-1], pts[i]) for i in range(1, len(pts))]
 
             for line in line_list:
+                if robot.stop_project_flag.is_set():
+                    raise RuntimeError('Robot requested stop.')
                 start = invert_y(line.start) * args.scale
                 end   = invert_y(line.end  ) * args.scale
                 # if the robot's last known position isn't close enough to the start, lift the pen
@@ -60,7 +62,7 @@ try:
 
     while(not robot.tx_q.empty()):
         time.sleep(1)  # block until queue empty
-except KeyboardInterrupt:
-    pass
+except (KeyboardInterrupt, RuntimeError) as e:
+    print(e)
 
 robot.disconnect()

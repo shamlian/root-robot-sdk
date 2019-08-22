@@ -22,6 +22,8 @@ class Root(object):
 
     sniff_mode = False
     ignore_crc_errors = False
+    
+    stop_project_flag = threading.Event() # signals that Stop Project message was received
 
     def __init__(self):
         self.ble_manager = BluetoothDeviceManager(adapter_name = 'hci0')
@@ -330,6 +332,7 @@ class Root(object):
 
                     if dev_name == 'General' and command == 4: # stop project
                         print('Warning: Stop Project!')
+                        self.stop_project_flag.set()
                         # purge all pending transmissions
                         while not self.tx_q.empty():
                             packet, expectResponse = self.tx_q.get()
