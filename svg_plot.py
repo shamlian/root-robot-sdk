@@ -18,6 +18,8 @@ parser.add_argument('-s', '--scale', type=float, default=1, help='Scalar for poi
 parser.add_argument('-a', '--approximate', type=int, default=5, help='Number of lines to use to approximate curves')
 parser.add_argument('-l', '--min_length', type=float, default=10, help='Minimum curve length for approximation')
 parser.add_argument('-e', '--epsilon', type=float, default=0.5, help='Distance between endpoints to consider "close enough" to not lift the pen')
+parser.add_argument('-t', '--test', action='store_true', help='Show SVG in default application instead of plotting with robot')
+parser.add_argument('-v', '--verbose', action='store_true')
 parser.add_argument('filename', type=str, help='SVG with path to plot')
 
 args = parser.parse_args()
@@ -31,6 +33,13 @@ except FileNotFoundError as e:
 def invert_y(c): # I feel like there should be a better way
     return numpy.real(c) - numpy.imag(c)*1j
 
+if args.test:
+    color_list = 'krgbcym'
+    color_list *= int(len(paths) / len(color_list)) + 1
+    color_list = color_list[:len(paths)]
+    svgpathtools.disvg(paths, color_list)
+    exit(0)
+
 try:
     robot = Root()
     robot.wait_for_connect()
@@ -40,11 +49,19 @@ try:
 
     for path in paths:
         for element in path:
+            if args.verbose:
+                print('Plotting', str(type(element)).split('.')[-1], end='')
             if type(element) == svgpathtools.path.Line or element.length()*args.scale < args.min_length:
                 line_list = [element]
+                if args.verbose:
+                    print(' as line: (', element.start, ',', element.end, ')')
             else: # adapted from svgpathtools issue #61
                 pts = [element.point(t) for t in segments]
                 line_list = [svgpathtools.Line(pts[i-1], pts[i]) for i in range(1, len(pts))]
+                if args.verbose:
+                    print(' as lines:')
+                    for line in line_list:
+                        print('          (', element.start, ',', element.end, ')')
 
             for line in line_list:
                 if robot.stop_project_flag.is_set():
