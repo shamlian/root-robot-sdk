@@ -131,6 +131,10 @@ class Root(object):
         command = struct.pack('>BBBiiq', 1, 12, 0, angle, 0, 0)
         self.tx_q.put((command, True))
 
+    def drive_arc(self, angle, radius):
+        command = struct.pack('>BBBiiq', 1, 4, 0, angle, radius, 0)
+        self.tx_q.put((command, True))
+
     last_coord = (0+0j)
     last_theta = 90.0
     def drive_complex(self, coord):
@@ -138,7 +142,7 @@ class Root(object):
         dist   = numpy.linalg.norm(vector)
         theta  = numpy.angle(vector, deg=True)
         turn = ((self.last_theta - theta + 180) % 360) - 180
-        print('turn', turn, ' drive', dist)
+        #print('turn', turn, ' drive', dist)
         self.rotate_angle(int(turn*10))
         self.drive_distance(int(dist))
 
@@ -291,6 +295,7 @@ class Root(object):
 
     resp_msg_acked = ( bytes([1,  8]),
                        bytes([1, 12]),
+                       bytes([1, 27]),
                        bytes([5,  0]),
                        bytes([5,  4]) )
 
