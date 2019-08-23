@@ -134,24 +134,27 @@ class Root(object):
         self.tx_q.put((command, True))
 
     def drive_arc(self, angle, radius):
-        command = struct.pack('>BBBiiq', 1, 4, 0, angle, radius, 0)
+        command = struct.pack('>BBBiiq', 1, 27, 0, angle, radius, 0)
         self.tx_q.put((command, True))
 
     last_coord = (0+0j)
-    last_theta = 90.0
+    last_theta_x10 = 900
     def drive_complex(self, coord):
-        vector = (coord - self.last_coord)
-        dist   = numpy.linalg.norm(vector)
-        theta  = numpy.angle(vector, deg=True)
-        turn = ((self.last_theta - theta + 180) % 360) - 180
-        #print('turn', turn, ' drive', dist)
-        self.rotate_angle(int(turn*10))
-        self.drive_distance(int(dist))
+        vector    = (coord - self.last_coord)
+        dist      = numpy.linalg.norm(vector)
+        theta     = numpy.angle(vector, deg=True)
+        theta_x10 = int(theta * 10)
+        turn      = ((self.last_theta_x10 - theta_x10 + 1800) % 3600) - 1800
+        dist      = int(dist)
 
-        #BUG: this will techincally drift over time if we don't recompute where we land (due to rounding)
-        self.last_coord = coord
-        self.last_theta = theta
+        #print(self.last_theta_x10, '->', theta_x10, ':', turn)
+        #print('turn', turn/10, ' drive', dist)
+        self.rotate_angle(turn)
+        self.drive_distance(dist)
 
+        self.last_coord = (numpy.real(self.last_coord) + dist * numpy.cos(theta_x10/10*numpy.pi/180)) + \
+                          (numpy.imag(self.last_coord) + dist * numpy.sin(theta_x10/10*numpy.pi/180))*1j
+        self.last_theta_x10 = theta_x10
 
     marker_up_eraser_up = 0
     marker_down_eraser_up = 1
@@ -159,6 +162,7 @@ class Root(object):
 
     def set_marker_eraser_pos(self, pos):
         pos = self.bound(pos, 0, 2)
+        #print('Set pen', pos)
         command = struct.pack('>BBBbbhiq', 2, 0, 0, pos, 0, 0, 0, 0)
         self.tx_q.put((command, True))
 
