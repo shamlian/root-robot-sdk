@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from pyroot import Root
+from pyroot import Root, Turtle
 
 #BUG: treats all segments as lines
 # helpful links:
@@ -18,7 +18,8 @@ parser.add_argument('-s', '--scale', type=float, default=1, help='Scalar for poi
 parser.add_argument('-a', '--approximate', type=int, default=5, help='Number of lines to use to approximate curves')
 parser.add_argument('-l', '--min_length', type=float, default=10, help='Minimum curve length for approximation')
 parser.add_argument('-e', '--epsilon', type=float, default=1, help='Distance between endpoints to consider "close enough" to not lift the pen')
-parser.add_argument('-t', '--test', action='store_true', help='Show SVG in default application instead of plotting with robot')
+parser.add_argument('-t', '--test', action='store_true', help='Use Python turtle instead of robot')
+parser.add_argument('--showsvg', action='store_true', help='Show SVG in default application instead of plotting with robot')
 parser.add_argument('-v', '--verbose', action='store_true')
 parser.add_argument('filename', type=str, help='SVG with path to plot')
 
@@ -33,7 +34,7 @@ except FileNotFoundError as e:
 def invert_y(c): # I feel like there should be a better way
     return numpy.real(c) - numpy.imag(c)*1j
 
-if args.test:
+if args.showsvg:
     color_list = 'krgbcym'
     color_list *= int(len(paths) / len(color_list)) + 1
     color_list = color_list[:len(paths)]
@@ -41,7 +42,10 @@ if args.test:
     exit(0)
 
 try:
-    robot = Root()
+    if not args.test:
+        robot = Root()
+    else:
+        robot = Turtle()
     robot.wait_for_connect()
     time.sleep(1) 
 

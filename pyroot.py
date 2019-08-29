@@ -500,3 +500,35 @@ class RootDevice(gatt.Device):
 
     def characteristic_value_updated(self, characteristic, value):
         self.rx_q.put(value)
+
+# starting a simulator
+class Turtle(Root):
+    stop_project_flag = threading.Event() # signals that Stop Project message was received
+    robot = None
+
+    def __init__(self):
+        import turtle
+        self.robot = turtle.Turtle()
+        self.robot.setheading(90)
+        self.robot.penup()
+
+    def wait_for_connect(self):
+        pass
+
+    def is_running(self):
+        return not self.stop_project_flag()
+
+    def disconnect(self):
+        self.stop_project_flag.set()
+
+    def drive_distance(self, distance):
+        self.robot.forward(distance)
+
+    def rotate_angle(self, angle):
+        self.robot.right(angle/10)
+
+    def set_marker_eraser_pos(self, pos):
+        if pos == self.marker_up_eraser_up:
+            self.robot.penup()
+        else:
+            self.robot.pendown()
