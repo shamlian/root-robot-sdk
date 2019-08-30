@@ -503,7 +503,6 @@ class RootDevice(gatt.Device):
 
 # starting a simulator
 class Turtle(Root):
-    stop_project_flag = threading.Event() # signals that Stop Project message was received
     robot = None
 
     def __init__(self):
