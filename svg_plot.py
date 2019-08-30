@@ -87,3 +87,7 @@ except (KeyboardInterrupt, RuntimeError) as e:
     print(e)
 
 robot.disconnect()
+
+if args.test:
+    robot.robot.hideturtle()
+    input('Press enter to continue.')
