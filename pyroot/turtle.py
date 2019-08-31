@@ -18,7 +18,7 @@ class Turtle(Root):
         pass
 
     def is_running(self):
-        return not self.stop_project_flag()
+        return not self.stop_project_flag.is_set()
 
     def disconnect(self):
         self.stop_project_flag.set()
