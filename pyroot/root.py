@@ -650,9 +650,9 @@ class Root(object):
                         if command == 0: # get versions
                             self.state[dev_name][message[3]] = message[4] + message[5]/1000
                         elif command == 2: # get name
-                            self.state[dev_name]['Name'] = str(message[3:19])
+                            self.state[dev_name]['Name'] = message[3:19].decode('utf-8').rstrip('\0')
                         elif command == 14: # get serial number
-                            self.state[dev_name]['Serial'] = str(message[3:19])
+                            self.state[dev_name]['Serial'] = message[3:19].decode('utf-8').rstrip('\0')
                     elif dev_name == 'MarkEraser' and command == 0: # set marker/eraser position
                         pos = message[3]
                         if pos == 0:
