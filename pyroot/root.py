@@ -10,7 +10,16 @@ import numpy
 from .ble_helpers import BluetoothDeviceManager, RootDevice
 
 class Root(object):
-    """Simplifies communication with a real Root robot."""
+    """Simplifies communication with a real Root robot.
+    
+    Unless otherwise indicated, all methods are non-blocking.
+    Packets are sent to the robot and received in separate threads;
+    replies are interpreted when received and responses are placed
+    in internal class state variables.
+
+    Full descriptions of Root BLE packets can be found at
+    RootRobotics/root-robot-ble-protocol
+    """
 
     ble_manager = None
     ble_thread = None
@@ -58,7 +67,7 @@ class Root(object):
         self.initialize_state()
 
     def is_running(self):
-        """Utility function for determining state of threads."""
+        """Utility function for determining state of bluetooth thread."""
         return self.ble_thread.is_alive()
 
     def disconnect(self):
@@ -111,64 +120,133 @@ class Root(object):
     main_board = 0xA5
     color_board = 0xC6
     def get_versions(self, board):
-        """Implements "get versions" packet.
+        """Requests the firmware version of a particular board in the robot.
 
         Parameters
         ----------
         board : byte
-            Byte defining the board whose version is being requested
+            Byte defining the board whose version is being requested.
+            For convenience, the following constants are defined:
+            * main_board
+            * color_board
         """
 
         command = struct.pack('>BBBBbhiq', 0, 0, 0, board, 0, 0, 0, 0)
         self.tx_q.put((command, True))
 
     def get_name(self):
+        """Requests the robot's name."""
         command = struct.pack('>BBBqq', 0, 2, 0, 0, 0)
         self.tx_q.put((command, True))
 
-    def enable_events(self): #TODO: Make smarter
+    def enable_events(self):
+        """Currently enables all events from the robot.
+
+        TODO: Request better documentation about the payload of
+        this packet and implement it.
+        """
         command = struct.pack('>BBBQQ', 0, 7, 0, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF)
         self.tx_q.put((command, False))
 
-    def disable_events(self): #TODO: Make smarter
+    def disable_events(self):
+        """Currently disables all events from the robot.
+
+        TODO: Request better documentation about the payload of
+        this packet and implement it.
+        """
         command = struct.pack('>BBBQQ', 0, 8, 0, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF)
         self.tx_q.put((command, False))
 
     def get_serial_number(self):
+        """Request robot serial number."""
         command = struct.pack('>BBBqq', 0, 14, 0, 0, 0)
         self.tx_q.put((command, True))
 
     def set_motor_speeds(self, left, right):
+        """Set left and right motor linear velocities.
+
+        Parameters
+        ----------
+        left : int
+            Left motor speed in units of mm/s.
+        right : int
+            Right motor speed in units of mm/s.
+        """
         left = self.bound(left, -100, 100)
         right = self.bound(right, -100, 100)
         command = struct.pack('>BBBiiq', 1, 4, 0, left, right, 0)
         self.tx_q.put((command, False))
 
     def set_left_motor_speed(self, left):
+        """Set left motor linear velocity.
+
+        Parameters
+        ----------
+        left : int
+            Left motor speed in units of mm/s.
+        """
         left = self.bound(left, -100, 100)
         command = struct.pack('>BBBiiq', 1, 6, 0, left, 0, 0)
         self.tx_q.put((command, False))
 
     def set_right_motor_speed(self, right):
+        """Set right motor linear velocity.
+
+        Parameters
+        ----------
+        right : int
+            Right motor speed in units of mm/s.
+        """
         right = self.bound(right, -100, 100)
         command = struct.pack('>BBBiiq', 1, 7, 0, right, 0, 0)
         self.tx_q.put((command, False))
 
     def drive_distance(self, distance):
+        """Drive in a straight line for a certain distance.
+
+        Parameters
+        ----------
+        distance : int
+            Distance to travel in units of mm.
+        """
         command = struct.pack('>BBBiiq', 1, 8, 0, distance, 0, 0)
         self.tx_q.put((command, True))
 
     def rotate_angle(self, angle):
+        """Turn the robot in place by a particular angle.
+
+        Parameters
+        ----------
+        angle : int
+            Angle to turn in units of deci-degrees.
+        """
         command = struct.pack('>BBBiiq', 1, 12, 0, angle, 0, 0)
         self.tx_q.put((command, True))
 
     def drive_arc(self, angle, radius):
+        """Drive in an arc subtending a particular angle along a circle.
+
+        Parameters
+        ----------
+        angle : int
+            Angle of an arc to drive along, in deci-degrees.
+        radius : int
+            Radius of the circle upon which to travel.
+        """
         command = struct.pack('>BBBiiq', 1, 27, 0, angle, radius, 0)
         self.tx_q.put((command, True))
 
     last_coord = (0+0j)
     last_theta_x10 = 900
     def drive_complex(self, coord):
+        """Drive to a particular coordinate in the XY plane.
+
+        Parameters
+        ----------
+        coord : complex
+            Coordinate to head to, described as a complex number.
+        """
+
         vector    = (coord - self.last_coord)
         dist      = numpy.linalg.norm(vector)
         theta     = numpy.angle(vector, deg=True)
@@ -190,6 +268,17 @@ class Root(object):
     marker_up_eraser_down = 2
 
     def set_marker_eraser_pos(self, pos):
+        """Set the Marker/Eraser actuator to a particular position.
+
+        Parameters
+        ----------
+        pos : byte
+            Byte describing the position to acquire.
+            For convenience, the following constants are defined.
+            * marker_up_eraser_up
+            * marker_down_eraser_up
+            * marker_up_eraser_down
+        """
         pos = self.bound(pos, 0, 2)
         #print('Set pen', pos)
         command = struct.pack('>BBBbbhiq', 2, 0, 0, pos, 0, 0, 0, 0)
@@ -201,11 +290,40 @@ class Root(object):
     led_animation_spin = 3
 
     def set_led_animation(self, state, red, green, blue):
+        """Animate the LED lights on top of the robot.
+
+        Parameters
+        ----------
+        state : byte
+            Byte describing the animation style.
+            For convenience, the following constants are defined.
+            * led_animation_off
+            * led_animation_on
+            * led_animation_blink
+            * led_animation_spin
+        red : byte
+            Brightness level of the red channel.
+        green : byte
+            Brightness level of the green channel.
+        blue : byte
+            Brightness level of the blue channel.
+        """
         state = self.bound(state, 0, 3)
         command = struct.pack('>BBBbBBBiq', 3, 2, 0, state, red, green, blue, 0, 0)
         self.tx_q.put((command, False))
 
     def get_color_sensor_data(self, bank, lighting, fmt):
+        """Request raw color sensor data.
+
+        Parameters
+        ----------
+        bank : byte
+            Which (of four) banks from which to get data.
+        lighting : byte
+            Which (of five) styles to illuminate the sensor.
+        fmt : bye
+            Which (of two) formats to receive the data.
+        """
         bank = self.bound(bank, 0, 3)
         lighting = self.bound(lighting, 0, 4)
         fmt = self.bound(fmt, 0, 1)
@@ -213,14 +331,31 @@ class Root(object):
         self.tx_q.put((command, True))
 
     def play_note(self, frequency, duration):
+        """Play a frequency using the buzzer.
+
+        Parameters
+        ----------
+        frequency : int
+            Frequency of square wave to play, in units of Hertz
+        duration : int
+            Duration to play, in units of milliseconds
+        """
         command = struct.pack('>BBBIHhq', 5, 0, 0, frequency, duration, 0, 0)
         self.tx_q.put((command, True))
 
     def stop_note(self):
+        """Stop playing sound through the buzzer immediately."""
         command = struct.pack('>BBBqq', 5, 1, 0, 0, 0)
         self.tx_q.put((command, False))
 
     def say_phrase(self, phrase):
+        """Speak a phrase in Root's language.
+
+        Parameters
+        ----------
+        phrase : str
+            Phase to "speak."
+        """
         phrase = phrase.encode('utf-8')[0:16]
         if len(phrase) < 16:
             phrase += bytes(16-len(phrase))
@@ -228,13 +363,42 @@ class Root(object):
         self.tx_q.put((command, True))
 
     def get_battery_level(self):
+        """Request the current battery level."""
         command = struct.pack('>BBBqq', 14, 1, 0, 0, 0)
         self.tx_q.put((command, True))
 
     def bound(self, value, low, high):
+        """Helper function to keep numbers in bounds.
+        
+        Parameter
+        ---------
+        value : number
+            Value to keep in bounds.
+        low : number
+            Minimum of bounds check.
+        high : number
+            Maximum of bounds check.
+            
+        Returns
+        -------
+        new_value
+            The original value, guaranteed between low and high, inclusive
+        """
         return min(high, max(low, value))
 
     def calculate_timeout(self, message):
+        """Helper function to calculate a timeout for packets expecting a response.
+
+        Parameter
+        ---------
+        message : bytes
+            Message for which to calculate a timeout
+
+        Returns
+        -------
+        timeout : float
+            Number of seconds to wait for message receipt.
+        """
         timeout = 1 # minimum to wait
         timeout += 3
         msg_type = message[0:2]
