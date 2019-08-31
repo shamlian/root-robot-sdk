@@ -2,7 +2,7 @@
 
 from pyroot import Root, Turtle
 
-#BUG: treats all segments as lines
+#TODO: Use arcs when possible instead of lines.
 # helpful links:
 # https://pypi.org/project/svgpathtools/
 # https://nerd.mmccoo.com/2018/01/11/understanding-and-parsing-svg-paths/
