@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 
-import gatt
+# External Dependencies
 import threading
 import crc8
 import time
 import struct
 import queue
-import threading
 import numpy
+
+# Internal Dependencies
+from .ble_helpers import BluetoothDeviceManager, RootDevice
 
 class Root(object):
     ble_manager = None
@@ -448,85 +450,3 @@ class Root(object):
     def set_sniff_mode(self, mode):
         self.sniff_mode = True if mode else False
 
-class BluetoothDeviceManager(gatt.DeviceManager):
-    robot = None # root robot device
-
-    def device_discovered(self, device):
-        print("[%s] Discovered: %s" % (device.mac_address, device.alias()))
-        self.stop_discovery() # Stop searching
-        self.robot = RootDevice(mac_address=device.mac_address, manager=self)
-        self.robot.connect()
-
-class RootDevice(gatt.Device):
-    uart_service_uuid = '6e400001-b5a3-f393-e0a9-e50e24dcca9e'
-    tx_characteristic_uuid = '6e400002-b5a3-f393-e0a9-e50e24dcca9e' # Write
-    rx_characteristic_uuid = '6e400003-b5a3-f393-e0a9-e50e24dcca9e' # Notify
-    rx_q = queue.SimpleQueue()
-
-    service_resolution_complete = False
-
-    def connect_succeeded(self):
-        super().connect_succeeded()
-        print("[%s] Connected" % (self.mac_address))
-
-    def connect_failed(self, error):
-        super().connect_failed(error)
-        print("[%s] Connection failed: %s" % (self.mac_address, str(error)))
-
-    def disconnect_succeeded(self):
-        super().disconnect_succeeded()
-        self.service_resolution_complete = False
-        print("[%s] Disconnected" % (self.mac_address))
-
-    def services_resolved(self):
-        super().services_resolved()
-        print("[%s] Resolved services" % (self.mac_address))
-
-        self.uart_service = next(
-            s for s in self.services
-            if s.uuid == self.uart_service_uuid)
-
-        self.tx_characteristic = next(
-            c for c in self.uart_service.characteristics
-            if c.uuid == self.tx_characteristic_uuid)
-
-        self.rx_characteristic = next(
-            c for c in self.uart_service.characteristics
-            if c.uuid == self.rx_characteristic_uuid)
-
-        self.rx_characteristic.enable_notifications() # listen to RX messages
-        self.service_resolution_complete = True
-
-    def characteristic_value_updated(self, characteristic, value):
-        self.rx_q.put(value)
-
-# starting a simulator
-class Turtle(Root):
-    robot = None
-
-    def __init__(self):
-        import turtle
-        self.robot = turtle.Turtle()
-        self.robot.setheading(90)
-        self.robot.penup()
-
-    def wait_for_connect(self):
-        pass
-
-    def is_running(self):
-        return not self.stop_project_flag.is_set()
-
-    def disconnect(self):
-        self.stop_project_flag.set()
-
-    def drive_distance(self, distance):
-        self.robot.forward(distance)
-
-    def rotate_angle(self, angle):
-        self.robot.right(angle/10)
-
-    def set_marker_eraser_pos(self, pos):
-        if pos == self.marker_up_eraser_up:
-            self.robot.penup()
-        else:
-            self.robot.pendown()
