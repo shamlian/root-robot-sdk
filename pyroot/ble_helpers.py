@@ -1,5 +1,4 @@
-#!/usr/bin/env python3
-
+# External Dependencies
 import gatt
 import queue
 

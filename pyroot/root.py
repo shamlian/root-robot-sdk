@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 # External Dependencies
 import threading
 import crc8
