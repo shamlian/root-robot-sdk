@@ -30,11 +30,16 @@ class Root(object):
 
     pending_lock = threading.Lock()
     pending_resp = []
+    """list: List of responses pending from the robot."""
 
     sniff_mode = False
+    """bool: If True, shows the raw BLE transactions to and from the robot."""
+
     ignore_crc_errors = False
+    """bool: If true, ignores CRC errors in packets from the robot."""
     
-    stop_project_flag = threading.Event() # signals that Stop Project message was received
+    stop_project_flag = threading.Event()
+    """Event: signals that Stop Project message was received."""
 
     def __init__(self):
         """Sets up Bluetooth manager to look for robots."""
@@ -418,12 +423,24 @@ class Root(object):
         return timeout
 
     def responses_pending(self):
+        """Helper function to determine whether any responses packets are pending.
+
+        Returns
+        -------
+        value : bool
+            True if any response packets are pending.
+        """
         self.pending_lock.acquire()
         pending_resp_len = len(self.pending_resp)
         self.pending_lock.release()
         return True if pending_resp_len > 0 else False
 
     def sending_thread(self):
+        """Manages the sending of packets to the robot.
+
+        Sends messages in order from the tx queue, waiting if any
+        messages have responses pending.
+        """
         inc = 0
         while self.ble_thread.is_alive():
 
@@ -449,6 +466,16 @@ class Root(object):
                     inc = 0
 
     def send_raw_ble(self, packet):
+        """Helper method to send raw BLE packets to the robot.
+
+        If sniff mode is enabled, this function also prints the
+        packet to stdout.
+
+        Parameters
+        ----------
+        packet : bytes
+            20-byte packet to send to the robot.
+        """
         if len(packet) == 20:
             self.ble_manager.robot.tx_characteristic.write_value(packet)
         else:
@@ -457,6 +484,7 @@ class Root(object):
             print('>>>', list(packet))
 
     def expiration_thread(self):
+        """Manages the expiration of packets in the receiving queue."""
         while self.ble_thread.is_alive():
             time.sleep(0.5)
 
@@ -499,6 +527,11 @@ class Root(object):
                        bytes([5,  4]) )
 
     def receiving_thread(self):
+        """Manages the receipt of packets from the robot.
+
+        Interprets messages recieved in the rx queue in order and
+        acts upon them, if necessary.
+        """
         last_event = 255
         while self.ble_thread.is_alive():
             if self.rx_q is not None and not self.rx_q.empty():
@@ -636,8 +669,16 @@ class Root(object):
                         print('Unsupported message ', list(message))
 
     def get_sniff_mode(self):
+        """Helper function to determine whether we are in sniff mode."""
         return self.sniff_mode
 
     def set_sniff_mode(self, mode):
+        """Helper function to set sniff mode on or off.
+
+        Parameters
+        ----------
+        mode : bool
+            True to turn sniff mode on; False to turn it off.
+        """
         self.sniff_mode = True if mode else False
 
