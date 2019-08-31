@@ -5,6 +5,10 @@ import turtle
 from .root import Root
 
 class Turtle(Root):
+    """Simulate a Root robot using the Python turtle.
+    
+    Currently only supports a subset of methods in the Root class.
+    """
     robot = None
 
     def __init__(self):

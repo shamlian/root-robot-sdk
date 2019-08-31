@@ -10,6 +10,8 @@ import numpy
 from .ble_helpers import BluetoothDeviceManager, RootDevice
 
 class Root(object):
+    """Simplifies communication with a real Root robot."""
+
     ble_manager = None
     ble_thread = None
     root_identifier_uuid = '48c5d828-ac2a-442d-97a3-0c9822b04979'
@@ -26,12 +28,22 @@ class Root(object):
     stop_project_flag = threading.Event() # signals that Stop Project message was received
 
     def __init__(self):
+        """Sets up Bluetooth manager to look for robots."""
         self.ble_manager = BluetoothDeviceManager(adapter_name = 'hci0')
         self.ble_manager.start_discovery(service_uuids=[self.root_identifier_uuid])
         self.ble_thread = threading.Thread(target = self.ble_manager.run)
         self.ble_thread.start()
 
     def wait_for_connect(self):
+        """Blocking function initializing robot connection.
+
+        Connects to the first Root robot it sees, kicks off some threads
+        used to manage the connection, and uses initialize_state() to
+        populate some information about the robot into the class.
+
+        TODO: Add an argument to pick a particular robot.
+        """
+
         while self.ble_manager.robot is None:
             time.sleep(0.1) # wait for a root robot to be discovered
         while not self.ble_manager.robot.service_resolution_complete:
@@ -46,9 +58,11 @@ class Root(object):
         self.initialize_state()
 
     def is_running(self):
+        """Utility function for determining state of threads."""
         return self.ble_thread.is_alive()
 
     def disconnect(self):
+        """Request disconnect from the robot and shut down connection."""
         command = struct.pack('>BBBqq', 0, 6, 0, 0, 0)
         self.tx_q.put((command, False))
         self.ble_manager.stop()
@@ -59,6 +73,13 @@ class Root(object):
     state = {}
 
     def initialize_state(self):
+        """Set up internal state dictionary.
+
+        Since certain versions of the main board protocol don't support
+        CRC properly, also request version information and set some
+        internal flags so that warnings are thrown appropriately.
+        """
+
         for devnum, device in self.supported_devices.items():
             self.state[device] = None
 
@@ -90,6 +111,14 @@ class Root(object):
     main_board = 0xA5
     color_board = 0xC6
     def get_versions(self, board):
+        """Implements "get versions" packet.
+
+        Parameters
+        ----------
+        board : byte
+            Byte defining the board whose version is being requested
+        """
+
         command = struct.pack('>BBBBbhiq', 0, 0, 0, board, 0, 0, 0, 0)
         self.tx_q.put((command, True))
 
