@@ -315,7 +315,6 @@ class Root(object):
                 command = message[1]
                 id      = message[2]
                 state   = message[7]
-                crc     = message[19]
 
                 crc_fail = True if crc8.crc8(message).digest() != b'\x00' else False
 
@@ -515,7 +514,7 @@ class Turtle(Root):
         pass
 
     def is_running(self):
-        return not self.stop_project_flag()
+        return not self.stop_project_flag.is_set()
 
     def disconnect(self):
         self.stop_project_flag.set()
