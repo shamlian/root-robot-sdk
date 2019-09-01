@@ -8,9 +8,11 @@ try:
     robot = Root()
     robot.wait_for_connect()
 
-    print("Press letter (f,b,l,r) to drive robot (t) to turn, (s) to stop, (u or d) raise pen up or down, (m {val}) to move, (a{val}) to rotate, (z) to get robot states, (i) for sniff, (q) to quit")
+    print("Press letter (f,b,l,r) to drive robot (t) to turn, (s) to stop, (u or d) raise pen up or down, (m {val}) to move, (a {val}) to rotate, (z) to get robot states, (i) for sniff, (n {str}) to change name, (q) to quit")
     while command != "q" and robot.is_running():
         command = input('> ') # wait for keyboard input
+        if command == '':
+            continue
         if command == "f":
             print("Drive forward")
             robot.set_motor_speeds(100, 100)
@@ -51,6 +53,12 @@ try:
                 print(s, v)
         if command == 'i':
             robot.set_sniff_mode(not robot.get_sniff_mode())
+        if command[0] == "n":
+            try:
+                name = command.split()[1]
+                print("Changed name to", robot.set_name(name))
+            except:
+                print("Bad command")
         if command == ',':
             for i in range(4):
                 robot.drive_distance(100)
@@ -59,6 +67,7 @@ try:
             robot.get_versions(robot.main_board)
             robot.get_versions(robot.color_board)
             robot.get_battery_level()
+            robot.get_name()
 
 except KeyboardInterrupt:
     pass
