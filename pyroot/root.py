@@ -218,8 +218,8 @@ class Root(object):
         right : int
             Right motor speed in units of mm/s.
         """
-        left = self.bound(left, -100, 100)
-        right = self.bound(right, -100, 100)
+        left = self._bound(left, -100, 100)
+        right = self._bound(right, -100, 100)
         command = struct.pack('>BBBiiq', 1, 4, 0, left, right, 0)
         self.tx_q.put((command, False))
 
@@ -231,7 +231,7 @@ class Root(object):
         left : int
             Left motor speed in units of mm/s.
         """
-        left = self.bound(left, -100, 100)
+        left = self._bound(left, -100, 100)
         command = struct.pack('>BBBiiq', 1, 6, 0, left, 0, 0)
         self.tx_q.put((command, False))
 
@@ -243,7 +243,7 @@ class Root(object):
         right : int
             Right motor speed in units of mm/s.
         """
-        right = self.bound(right, -100, 100)
+        right = self._bound(right, -100, 100)
         command = struct.pack('>BBBiiq', 1, 7, 0, right, 0, 0)
         self.tx_q.put((command, False))
 
@@ -325,7 +325,7 @@ class Root(object):
             * marker_down_eraser_up
             * marker_up_eraser_down
         """
-        pos = self.bound(pos, 0, 2)
+        pos = self._bound(pos, 0, 2)
         #print('Set pen', pos)
         command = struct.pack('>BBBbbhiq', 2, 0, 0, pos, 0, 0, 0, 0)
         self.tx_q.put((command, True))
@@ -354,7 +354,7 @@ class Root(object):
         blue : byte
             Brightness level of the blue channel.
         """
-        state = self.bound(state, 0, 3)
+        state = self._bound(state, 0, 3)
         command = struct.pack('>BBBbBBBiq', 3, 2, 0, state, red, green, blue, 0, 0)
         self.tx_q.put((command, False))
 
@@ -370,9 +370,9 @@ class Root(object):
         fmt : bye
             Which (of two) formats to receive the data.
         """
-        bank = self.bound(bank, 0, 3)
-        lighting = self.bound(lighting, 0, 4)
-        fmt = self.bound(fmt, 0, 1)
+        bank = self._bound(bank, 0, 3)
+        lighting = self._bound(lighting, 0, 4)
+        fmt = self._bound(fmt, 0, 1)
         command = struct.pack('>BBBbbbBiq', 4, 1, 0, bank, lighting, fmt, 0, 0, 0)
         self.tx_q.put((command, True))
 
@@ -413,7 +413,7 @@ class Root(object):
         command = struct.pack('>BBBqq', 14, 1, 0, 0, 0)
         self.tx_q.put((command, True))
 
-    def bound(self, value, low, high):
+    def _bound(self, value, low, high):
         """Helper function to keep numbers in bounds.
         
         Parameter
@@ -432,7 +432,7 @@ class Root(object):
         """
         return min(high, max(low, value))
 
-    def calculate_timeout(self, message):
+    def _calculate_timeout(self, message):
         """Helper function to calculate a timeout for packets expecting a response.
 
         Parameter
@@ -497,16 +497,16 @@ class Root(object):
                 if expectResponse:
                     self.pending_lock.acquire()
                     # need a timeout because responses are not guaranteed.
-                    resp_expire = time.time() + self.calculate_timeout(packet)
+                    resp_expire = time.time() + self._calculate_timeout(packet)
                     self.pending_resp.append((packet[0:3], resp_expire))
                     self.pending_lock.release()
                 
-                self.send_raw_ble(packet + crc8.crc8(packet).digest())
+                self._send_raw_ble(packet + crc8.crc8(packet).digest())
                 inc += 1
                 if inc > 255:
                     inc = 0
 
-    def send_raw_ble(self, packet):
+    def _send_raw_ble(self, packet):
         """Helper method to send raw BLE packets to the robot.
 
         If sniff mode is enabled, this function also prints the
