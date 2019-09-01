@@ -164,7 +164,7 @@ class Root(object):
             return None
 
         if utf_name == b'':
-            name = b'Flea'
+            name = b'\x46\x4c\x45\x41'
 
         command = struct.pack('>BBB16s', 0, 1, 0, utf_name.ljust(16, b'\0'))
         self.tx_q.put((command, False))
@@ -174,6 +174,11 @@ class Root(object):
         """Requests the robot's name."""
         command = struct.pack('>BBBqq', 0, 2, 0, 0, 0)
         self.tx_q.put((command, True))
+
+    def stop_and_reset(self):
+        """Requests robot stop and cancel all pending actions."""
+        command = struct.pack('>BBBqq', 0, 3, 0, 0, 0)
+        self.tx_q.put((command, False))
 
     def enable_events(self):
         """Currently enables all events from the robot.
@@ -192,6 +197,11 @@ class Root(object):
         """
         command = struct.pack('>BBBQQ', 0, 8, 0, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF)
         self.tx_q.put((command, False))
+
+    def get_enabled_events(self):
+        """Request bitfield of enabled devices."""
+        command = struct.pack('>BBBqq', 0, 11, 0, 0, 0)
+        self.tx_q.put((command, True))
 
     def get_serial_number(self):
         """Request robot serial number."""
@@ -682,6 +692,8 @@ class Root(object):
                             self.state[dev_name][message[3]] = message[4] + message[5]/1000
                         elif command == 2: # get name
                             self.state[dev_name]['Name'] = message[3:19].decode('utf-8').rstrip('\0')
+                        elif command == 11: # get enabled events
+                            self.state[dev_name]['EnabledEvents'] = message[3:19]
                         elif command == 14: # get serial number
                             self.state[dev_name]['Serial'] = message[3:19].decode('utf-8').rstrip('\0')
                     elif dev_name == 'MarkEraser' and command == 0: # set marker/eraser position
