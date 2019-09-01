@@ -139,6 +139,37 @@ class Root(object):
         command = struct.pack('>BBBBbhiq', 0, 0, 0, board, 0, 0, 0, 0)
         self.tx_q.put((command, True))
 
+    def set_name(self, name):
+        """Sets the robot's name.
+        
+        Parameters
+        ----------
+        name : str
+            New name for the robot.
+
+        Returns
+        -------
+        utf_name : bytes
+        Actual name set for the robot, since the name requested may not fit.
+        Truncates the name if its UTF-8 representation is longer than 16 bytes.
+        Returns None if the name supplied cannot be converted.
+        """
+
+        try:
+            utf_name = name.encode('utf-8')
+            while len(utf_name) > 16:
+                name = name[:-1]
+                utf_name = name.encode('utf-8')
+        except AttributeError:
+            return None
+
+        if utf_name == b'':
+            name = b'Flea'
+
+        command = struct.pack('>BBB16s', 0, 1, 0, utf_name.ljust(16, b'\0'))
+        self.tx_q.put((command, False))
+        return utf_name
+
     def get_name(self):
         """Requests the robot's name."""
         command = struct.pack('>BBBqq', 0, 2, 0, 0, 0)
