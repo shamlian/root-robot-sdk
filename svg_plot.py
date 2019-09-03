@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from root-robot-sdk import Root, Turtle
+from pyroot import Root, Turtle
 
 #TODO: Use arcs when possible instead of lines.
 # helpful links:
