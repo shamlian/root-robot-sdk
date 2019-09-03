@@ -1,4 +1,4 @@
-# PyRoot
+# root-robot-sdk
 Python control of Root Robot via BLE
 
 Open Source Licence: BSD
