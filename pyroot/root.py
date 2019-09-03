@@ -25,7 +25,10 @@ class Root(object):
     ble_thread = None
     root_identifier_uuid = '48c5d828-ac2a-442d-97a3-0c9822b04979'
 
-    tx_q = queue.SimpleQueue()
+    try:
+        tx_q = queue.SimpleQueue()
+    except AttributeError:
+        tx_q = queue.Queue()
     rx_q = None # set up in RootDevice class
 
     pending_lock = threading.Lock()

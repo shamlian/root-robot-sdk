@@ -15,7 +15,10 @@ class RootDevice(gatt.Device):
     uart_service_uuid = '6e400001-b5a3-f393-e0a9-e50e24dcca9e'
     tx_characteristic_uuid = '6e400002-b5a3-f393-e0a9-e50e24dcca9e' # Write
     rx_characteristic_uuid = '6e400003-b5a3-f393-e0a9-e50e24dcca9e' # Notify
-    rx_q = queue.SimpleQueue()
+    try:
+        rx_q = queue.SimpleQueue()
+    except AttributeError:
+        rx_q = queue.Queue()
 
     service_resolution_complete = False
 
