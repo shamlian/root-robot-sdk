@@ -11,7 +11,7 @@ class Turtle(Root):
     """
     robot = None
 
-    def __init__(self):
+    def __init__(self, name = None):
         self.robot = turtle.Turtle()
         self.robot.setheading(90)
         self.robot.penup()

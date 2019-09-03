@@ -69,8 +69,11 @@ try:
             robot.get_battery_level()
             robot.get_name()
 
-except KeyboardInterrupt:
-    pass
+except (KeyboardInterrupt, TimeoutError) as e:
+    print(e)
 
 print("Quitting")
-robot.disconnect()
+try:
+    robot.disconnect()
+except AttributeError: # never connected
+    pass

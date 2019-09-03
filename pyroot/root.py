@@ -44,25 +44,42 @@ class Root(object):
     stop_project_flag = threading.Event()
     """Event: signals that Stop Project message was received."""
 
-    def __init__(self):
-        """Sets up Bluetooth manager to look for robots."""
+    def __init__(self, name = None):
+        """Sets up Bluetooth manager to look for robots.
+        
+        Parameters
+        ----------
+        name : str, optional
+            Name of the robot to connect to; if no name supplied, will connect
+            to the first robot it sees.
+        """
         self.ble_manager = BluetoothDeviceManager(adapter_name = 'hci0')
+        self.ble_manager.desired_name = name
         self.ble_manager.start_discovery(service_uuids=[self.root_identifier_uuid])
         self.ble_thread = threading.Thread(target = self.ble_manager.run)
         self.ble_thread.start()
 
-    def wait_for_connect(self):
+    def wait_for_connect(self, timeout = float('inf')):
         """Blocking function initializing robot connection.
 
         Connects to the first Root robot it sees, kicks off some threads
         used to manage the connection, and uses initialize_state() to
         populate some information about the robot into the class.
 
-        TODO: Add an argument to pick a particular robot.
+        Parameters
+        ----------
+        timeout : float, optional
+            Time to wait for connection; if None, will wait forever. Will throw
+            TimeoutError if timeout exceeded.
         """
 
-        while self.ble_manager.robot is None:
+        timeout += time.time()
+
+        while self.ble_manager.robot is None and time.time() < timeout:
             time.sleep(0.1) # wait for a root robot to be discovered
+        if self.ble_manager.robot is None:
+            raise TimeoutError('Timed out waiting for ' + self.ble_manager.desired_name)
+
         while not self.ble_manager.robot.service_resolution_complete:
             time.sleep(0.1) # allow services to resolve before continuing
 

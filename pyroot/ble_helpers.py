@@ -4,12 +4,17 @@ import queue
 
 class BluetoothDeviceManager(gatt.DeviceManager):
     robot = None # root robot device
+    desired_name = None
 
     def device_discovered(self, device):
         print("[%s] Discovered: %s" % (device.mac_address, device.alias()))
-        self.stop_discovery() # Stop searching
-        self.robot = RootDevice(mac_address=device.mac_address, manager=self)
-        self.robot.connect()
+        if self.desired_name == None:
+            self.desired_name = device.alias()
+
+        if self.desired_name == device.alias():
+            self.stop_discovery() # Stop searching
+            self.robot = RootDevice(mac_address=device.mac_address, manager=self)
+            self.robot.connect()
 
 class RootDevice(gatt.Device):
     uart_service_uuid = '6e400001-b5a3-f393-e0a9-e50e24dcca9e'
