@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from root-robot-sdk import Root
+from pyroot import Root
 import time
 
 command = ""
