@@ -82,7 +82,7 @@ try:
 
     robot.set_marker_eraser_pos(robot.marker_up_eraser_up)
 
-    while(not robot.tx_q.empty()):
+    while(not robot.transmissions_pending()):
         time.sleep(1)  # block until queue empty
 except (KeyboardInterrupt, RuntimeError, TimeoutError) as e:
     print(e)

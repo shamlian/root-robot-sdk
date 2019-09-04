@@ -77,3 +77,4 @@ try:
     robot.disconnect()
 except AttributeError: # never connected
     pass
+    

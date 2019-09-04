@@ -25,6 +25,9 @@ class Turtle(Root):
     def disconnect(self):
         self.stop_project_flag.set()
 
+    def transmissions_pending(self):
+        return False
+
     def drive_distance(self, distance):
         self.robot.forward(distance)
 

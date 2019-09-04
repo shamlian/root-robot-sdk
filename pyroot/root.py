@@ -21,28 +21,7 @@ class Root(object):
     RootRobotics/root-robot-ble-protocol
     """
 
-    ble_manager = None
-    ble_thread = None
     root_identifier_uuid = '48c5d828-ac2a-442d-97a3-0c9822b04979'
-
-    try:
-        tx_q = queue.SimpleQueue()
-    except AttributeError:
-        tx_q = queue.Queue()
-    rx_q = None # set up in RootDevice class
-
-    pending_lock = threading.Lock()
-    pending_resp = []
-    """list: List of responses pending from the robot."""
-
-    sniff_mode = False
-    """bool: If True, shows the raw BLE transactions to and from the robot."""
-
-    ignore_crc_errors = False
-    """bool: If true, ignores CRC errors in packets from the robot."""
-    
-    stop_project_flag = threading.Event()
-    """Event: signals that Stop Project message was received."""
 
     def __init__(self, name = None):
         """Sets up Bluetooth manager to look for robots.
@@ -53,11 +32,39 @@ class Root(object):
             Name of the robot to connect to; if no name supplied, will connect
             to the first robot it sees.
         """
-        self.ble_manager = BluetoothDeviceManager(adapter_name = 'hci0')
-        self.ble_manager.desired_name = name
-        self.ble_manager.start_discovery(service_uuids=[self.root_identifier_uuid])
-        self.ble_thread = threading.Thread(target = self.ble_manager.run)
-        self.ble_thread.start()
+
+        try:
+            self._tx_q = queue.SimpleQueue()
+        except AttributeError:
+            self._tx_q = queue.Queue()
+        self._rx_q = None # set up in RootDevice class
+
+        self.pending_lock = threading.Lock()
+        self.pending_resp = []
+        """list: List of responses pending from the robot."""
+
+        self.sniff_mode = False
+        """bool: If True, shows the raw BLE transactions to and from the robot."""
+
+        self.ignore_crc_errors = False
+        """bool: If true, ignores CRC errors in packets from the robot."""
+        
+        self.stop_project_flag = threading.Event()
+        """Event: signals that Stop Project message was received."""
+
+        self.state = {}
+        """dict: Contains local state of robot"""
+
+        _last_coord = (0+0j)
+        """complex: Contains last known coordinates of robot."""
+        _last_theta_x10 = 900
+        """int: Contains last known heading of robot."""
+
+        self._ble_manager = BluetoothDeviceManager(adapter_name = 'hci0')
+        self._ble_manager.desired_name = name
+        self._ble_manager.start_discovery(service_uuids=[self.root_identifier_uuid])
+        self._ble_thread = threading.Thread(target = self._ble_manager.run)
+        self._ble_thread.start()
 
     def wait_for_connect(self, timeout = float('inf')):
         """Blocking function initializing robot connection.
@@ -75,36 +82,33 @@ class Root(object):
 
         timeout += time.time()
 
-        while self.ble_manager.robot is None and time.time() < timeout:
+        while self._ble_manager.robot is None and time.time() < timeout:
             time.sleep(0.1) # wait for a root robot to be discovered
-        if self.ble_manager.robot is None:
-            raise TimeoutError('Timed out waiting for ' + self.ble_manager.desired_name)
+        if self._ble_manager.robot is None:
+            raise TimeoutError('Timed out waiting for ' + self._ble_manager.desired_name)
 
-        while not self.ble_manager.robot.service_resolution_complete:
+        while not self._ble_manager.robot.service_resolution_complete:
             time.sleep(0.1) # allow services to resolve before continuing
 
-        self.rx_q = self.ble_manager.robot.rx_q
+        self._rx_q = self._ble_manager.robot.rx_q
 
-        threading.Thread(target = self.sending_thread).start()
-        threading.Thread(target = self.receiving_thread).start()
-        threading.Thread(target = self.expiration_thread).start()
+        threading.Thread(target = self._sending_thread).start()
+        threading.Thread(target = self._receiving_thread).start()
+        threading.Thread(target = self._expiration_thread).start()
 
         self.initialize_state()
 
     def is_running(self):
         """Utility function for determining state of bluetooth thread."""
-        return self.ble_thread.is_alive()
+        return self._ble_thread.is_alive()
 
     def disconnect(self):
         """Request disconnect from the robot and shut down connection."""
         command = struct.pack('>BBBqq', 0, 6, 0, 0, 0)
-        self.tx_q.put((command, False))
-        self.ble_manager.stop()
-        self.ble_manager.robot.disconnect()
-        self.ble_thread.join()
-
-    # Robot States
-    state = {}
+        self._tx_q.put((command, False))
+        self._ble_manager.stop()
+        self._ble_manager.robot.disconnect()
+        self._ble_thread.join()
 
     def initialize_state(self):
         """Set up internal state dictionary.
@@ -157,7 +161,7 @@ class Root(object):
         """
 
         command = struct.pack('>BBBBbhiq', 0, 0, 0, board, 0, 0, 0, 0)
-        self.tx_q.put((command, True))
+        self._tx_q.put((command, True))
 
     def set_name(self, name):
         """Sets the robot's name.
@@ -187,18 +191,18 @@ class Root(object):
             name = b'\x46\x4c\x45\x41'
 
         command = struct.pack('>BBB16s', 0, 1, 0, utf_name.ljust(16, b'\0'))
-        self.tx_q.put((command, False))
+        self._tx_q.put((command, False))
         return utf_name
 
     def get_name(self):
         """Requests the robot's name."""
         command = struct.pack('>BBBqq', 0, 2, 0, 0, 0)
-        self.tx_q.put((command, True))
+        self._tx_q.put((command, True))
 
     def stop_and_reset(self):
         """Requests robot stop and cancel all pending actions."""
         command = struct.pack('>BBBqq', 0, 3, 0, 0, 0)
-        self.tx_q.put((command, False))
+        self._tx_q.put((command, False))
 
     def enable_events(self):
         """Currently enables all events from the robot.
@@ -207,7 +211,7 @@ class Root(object):
         this packet and implement it.
         """
         command = struct.pack('>BBBQQ', 0, 7, 0, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF)
-        self.tx_q.put((command, False))
+        self._tx_q.put((command, False))
 
     def disable_events(self):
         """Currently disables all events from the robot.
@@ -216,17 +220,17 @@ class Root(object):
         this packet and implement it.
         """
         command = struct.pack('>BBBQQ', 0, 8, 0, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF)
-        self.tx_q.put((command, False))
+        self._tx_q.put((command, False))
 
     def get_enabled_events(self):
         """Request bitfield of enabled devices."""
         command = struct.pack('>BBBqq', 0, 11, 0, 0, 0)
-        self.tx_q.put((command, True))
+        self._tx_q.put((command, True))
 
     def get_serial_number(self):
         """Request robot serial number."""
         command = struct.pack('>BBBqq', 0, 14, 0, 0, 0)
-        self.tx_q.put((command, True))
+        self._tx_q.put((command, True))
 
     def set_motor_speeds(self, left, right):
         """Set left and right motor linear velocities.
@@ -241,7 +245,7 @@ class Root(object):
         left = self._bound(left, -100, 100)
         right = self._bound(right, -100, 100)
         command = struct.pack('>BBBiiq', 1, 4, 0, left, right, 0)
-        self.tx_q.put((command, False))
+        self._tx_q.put((command, False))
 
     def set_left_motor_speed(self, left):
         """Set left motor linear velocity.
@@ -253,7 +257,7 @@ class Root(object):
         """
         left = self._bound(left, -100, 100)
         command = struct.pack('>BBBiiq', 1, 6, 0, left, 0, 0)
-        self.tx_q.put((command, False))
+        self._tx_q.put((command, False))
 
     def set_right_motor_speed(self, right):
         """Set right motor linear velocity.
@@ -265,7 +269,7 @@ class Root(object):
         """
         right = self._bound(right, -100, 100)
         command = struct.pack('>BBBiiq', 1, 7, 0, right, 0, 0)
-        self.tx_q.put((command, False))
+        self._tx_q.put((command, False))
 
     def drive_distance(self, distance):
         """Drive in a straight line for a certain distance.
@@ -276,7 +280,7 @@ class Root(object):
             Distance to travel in units of mm.
         """
         command = struct.pack('>BBBiiq', 1, 8, 0, distance, 0, 0)
-        self.tx_q.put((command, True))
+        self._tx_q.put((command, True))
 
     def rotate_angle(self, angle):
         """Turn the robot in place by a particular angle.
@@ -287,7 +291,7 @@ class Root(object):
             Angle to turn in units of deci-degrees.
         """
         command = struct.pack('>BBBiiq', 1, 12, 0, angle, 0, 0)
-        self.tx_q.put((command, True))
+        self._tx_q.put((command, True))
 
     def drive_arc(self, angle, radius):
         """Drive in an arc subtending a particular angle along a circle.
@@ -300,34 +304,44 @@ class Root(object):
             Radius of the circle upon which to travel.
         """
         command = struct.pack('>BBBiiq', 1, 27, 0, angle, radius, 0)
-        self.tx_q.put((command, True))
+        self._tx_q.put((command, True))
 
-    last_coord = (0+0j)
-    last_theta_x10 = 900
+    def drive_xy(self, x, y):
+        """Drive to a particular coordinate in the XY plane.
+
+        Parameters
+        ----------
+        x : float
+            X coordinate to which to head.
+        y : float
+            Y coordinate to which to head.
+        """
+        self.drive_complex(x + y * 1j)
+
     def drive_complex(self, coord):
         """Drive to a particular coordinate in the XY plane.
 
         Parameters
         ----------
         coord : complex
-            Coordinate to head to, described as a complex number.
+            Coordinate to which to head, described as a complex number.
         """
 
-        vector    = (coord - self.last_coord)
+        vector    = (coord - self._last_coord)
         dist      = numpy.linalg.norm(vector)
         theta     = numpy.angle(vector, deg=True)
         theta_x10 = int(theta * 10)
-        turn      = ((self.last_theta_x10 - theta_x10 + 1800) % 3600) - 1800
+        turn      = ((self._last_theta_x10 - theta_x10 + 1800) % 3600) - 1800
         dist      = int(dist)
 
-        #print(self.last_theta_x10, '->', theta_x10, ':', turn)
+        #print(self._last_theta_x10, '->', theta_x10, ':', turn)
         #print('turn', turn/10, ' drive', dist)
         self.rotate_angle(turn)
         self.drive_distance(dist)
 
-        self.last_coord = (numpy.real(self.last_coord) + dist * numpy.cos(theta_x10/10*numpy.pi/180)) + \
-                          (numpy.imag(self.last_coord) + dist * numpy.sin(theta_x10/10*numpy.pi/180))*1j
-        self.last_theta_x10 = theta_x10
+        self._last_coord = (numpy.real(self._last_coord) + dist * numpy.cos(theta_x10/10*numpy.pi/180)) + \
+                          (numpy.imag(self._last_coord) + dist * numpy.sin(theta_x10/10*numpy.pi/180))*1j
+        self._last_theta_x10 = theta_x10
 
     marker_up_eraser_up = 0
     marker_down_eraser_up = 1
@@ -348,7 +362,7 @@ class Root(object):
         pos = self._bound(pos, 0, 2)
         #print('Set pen', pos)
         command = struct.pack('>BBBbbhiq', 2, 0, 0, pos, 0, 0, 0, 0)
-        self.tx_q.put((command, True))
+        self._tx_q.put((command, True))
 
     led_animation_off = 0
     led_animation_on = 1
@@ -376,7 +390,7 @@ class Root(object):
         """
         state = self._bound(state, 0, 3)
         command = struct.pack('>BBBbBBBiq', 3, 2, 0, state, red, green, blue, 0, 0)
-        self.tx_q.put((command, False))
+        self._tx_q.put((command, False))
 
     def get_color_sensor_data(self, bank, lighting, fmt):
         """Request raw color sensor data.
@@ -394,7 +408,7 @@ class Root(object):
         lighting = self._bound(lighting, 0, 4)
         fmt = self._bound(fmt, 0, 1)
         command = struct.pack('>BBBbbbBiq', 4, 1, 0, bank, lighting, fmt, 0, 0, 0)
-        self.tx_q.put((command, True))
+        self._tx_q.put((command, True))
 
     def play_note(self, frequency, duration):
         """Play a frequency using the buzzer.
@@ -407,12 +421,12 @@ class Root(object):
             Duration to play, in units of milliseconds
         """
         command = struct.pack('>BBBIHhq', 5, 0, 0, frequency, duration, 0, 0)
-        self.tx_q.put((command, True))
+        self._tx_q.put((command, True))
 
     def stop_note(self):
         """Stop playing sound through the buzzer immediately."""
         command = struct.pack('>BBBqq', 5, 1, 0, 0, 0)
-        self.tx_q.put((command, False))
+        self._tx_q.put((command, False))
 
     def say_phrase(self, phrase):
         """Speak a phrase in Root's language.
@@ -426,12 +440,12 @@ class Root(object):
         if len(phrase) < 16:
             phrase += bytes(16-len(phrase))
         command = struct.pack('>BBBs', 5, 4, 0, phrase)
-        self.tx_q.put((command, True))
+        self._tx_q.put((command, True))
 
     def get_battery_level(self):
         """Request the current battery level."""
         command = struct.pack('>BBBqq', 14, 1, 0, 0, 0)
-        self.tx_q.put((command, True))
+        self._tx_q.put((command, True))
 
     def _bound(self, value, low, high):
         """Helper function to keep numbers in bounds.
@@ -483,8 +497,8 @@ class Root(object):
             timeout += 16 # need to figure out how to calculate this
         return timeout
 
-    def responses_pending(self):
-        """Helper function to determine whether any responses packets are pending.
+    def _responses_pending(self):
+        """Helper function to determine whether any response packets are pending.
 
         Returns
         -------
@@ -496,21 +510,32 @@ class Root(object):
         self.pending_lock.release()
         return True if pending_resp_len > 0 else False
 
-    def sending_thread(self):
+    def transmissions_pending(self):
+        """Helper function to determine whether any transmissions are
+           waiting to be sent.
+
+        Returns
+        -------
+        value : bool
+            True if any transmissions are pending.
+        """
+        return not self._tx_q.empty()
+
+    def _sending_thread(self):
         """Manages the sending of packets to the robot.
 
         Sends messages in order from the tx queue, waiting if any
         messages have responses pending.
         """
         inc = 0
-        while self.ble_thread.is_alive():
+        while self._ble_thread.is_alive():
 
             # block sending new commands until no responses pending
-            if self.responses_pending():
+            if self._responses_pending():
                 continue
 
-            if not self.tx_q.empty():
-                packet, expectResponse = self.tx_q.get()
+            if not self._tx_q.empty():
+                packet, expectResponse = self._tx_q.get()
                 packet = bytearray(packet)
                 packet[2] = inc
 
@@ -538,15 +563,15 @@ class Root(object):
             20-byte packet to send to the robot.
         """
         if len(packet) == 20:
-            self.ble_manager.robot.tx_characteristic.write_value(packet)
+            self._ble_manager.robot.tx_characteristic.write_value(packet)
         else:
             print('Error: send_raw_ble: Packet wrong length.')
         if self.sniff_mode:
             print('>>>', list(packet))
 
-    def expiration_thread(self):
+    def _expiration_thread(self):
         """Manages the expiration of packets in the receiving queue."""
-        while self.ble_thread.is_alive():
+        while self._ble_thread.is_alive():
             time.sleep(0.5)
 
             self.pending_lock.acquire()
@@ -587,16 +612,16 @@ class Root(object):
                        bytes([5,  0]),
                        bytes([5,  4]) )
 
-    def receiving_thread(self):
+    def _receiving_thread(self):
         """Manages the receipt of packets from the robot.
 
         Interprets messages recieved in the rx queue in order and
         acts upon them, if necessary.
         """
         last_event = 255
-        while self.ble_thread.is_alive():
-            if self.rx_q is not None and not self.rx_q.empty():
-                message = self.rx_q.get()
+        while self._ble_thread.is_alive():
+            if self._rx_q is not None and not self._rx_q.empty():
+                message = self._rx_q.get()
 
                 device  = message[0]
                 command = message[1]
@@ -624,8 +649,8 @@ class Root(object):
                         print('Warning: Stop Project!')
                         self.stop_project_flag.set()
                         # purge all pending transmissions
-                        while not self.tx_q.empty():
-                            packet, expectResponse = self.tx_q.get()
+                        while not self._tx_q.empty():
+                            packet, expectResponse = self._tx_q.get()
                         # stop waiting for any responses
                             self.pending_lock.acquire()
                             self.pending_resp.clear()
