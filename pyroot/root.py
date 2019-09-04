@@ -55,9 +55,9 @@ class Root(object):
         self.state = {}
         """dict: Contains local state of robot"""
 
-        _last_coord = (0+0j)
+        self._last_coord = (0+0j)
         """complex: Contains last known coordinates of robot."""
-        _last_theta_x10 = 900
+        self._last_theta_x10 = 900
         """int: Contains last known heading of robot."""
 
         self._ble_manager = BluetoothDeviceManager(adapter_name = 'hci0')

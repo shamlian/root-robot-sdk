@@ -74,7 +74,7 @@ try:
                 start = invert_y(line.start) * args.scale
                 end   = invert_y(line.end  ) * args.scale
                 # if the robot's last known position isn't close enough to the start, lift the pen
-                if numpy.linalg.norm(robot.last_coord - start) > args.epsilon:
+                if numpy.linalg.norm(robot._last_coord - start) > args.epsilon:
                     robot.set_marker_eraser_pos(robot.marker_up_eraser_up)
                     robot.drive_complex(start)
                     robot.set_marker_eraser_pos(robot.marker_down_eraser_up)
@@ -82,7 +82,7 @@ try:
 
     robot.set_marker_eraser_pos(robot.marker_up_eraser_up)
 
-    while(not robot.transmissions_pending()):
+    while(robot.transmissions_pending()):
         time.sleep(1)  # block until queue empty
 except (KeyboardInterrupt, RuntimeError, TimeoutError) as e:
     print(e)

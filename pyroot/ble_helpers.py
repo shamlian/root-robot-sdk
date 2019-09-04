@@ -23,12 +23,12 @@ class RootDevice(gatt.Device):
 
     service_resolution_complete = False
 
-    def __init__(self):
+    def __init__(self, mac_address, manager, managed=True):
         try:
-            rx_q = queue.SimpleQueue()
+            self.rx_q = queue.SimpleQueue()
         except AttributeError:
-            rx_q = queue.Queue()
-        super.__init__()
+            self.rx_q = queue.Queue()
+        super().__init__(mac_address, manager, managed)
         
     def connect_succeeded(self):
         super().connect_succeeded()
