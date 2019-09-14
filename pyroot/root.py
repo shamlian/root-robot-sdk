@@ -7,7 +7,7 @@ import queue
 import numpy
 
 # Internal Dependencies
-from .ble_helpers import BluetoothDeviceManager, RootDevice
+from .ble_bluegiga import BluetoothDeviceManager, RootDevice
 
 class Root(object):
     """Simplifies communication with a real Root robot.
