@@ -9,7 +9,6 @@ class Turtle(Root):
     
     Currently only supports a subset of methods in the Root class.
     """
-    robot = None
 
     def __init__(self, name = None):
         self.robot = turtle.Turtle()
