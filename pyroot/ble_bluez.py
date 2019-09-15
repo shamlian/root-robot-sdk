@@ -4,14 +4,14 @@ import queue
 
 class BluetoothDeviceManager(gatt.DeviceManager):
     robot = None # root robot device
-    _desired_name = None
+    desired_name = None
 
     def device_discovered(self, device):
         print("[%s] Discovered: %s" % (device.mac_address, device.alias()))
-        if self._desired_name == None:
-            self._desired_name = device.alias()
+        if self.desired_name == None:
+            self.desired_name = device.alias()
 
-        if self._desired_name == device.alias():
+        if self.desired_name == device.alias():
             self.stop_discovery() # Stop searching
             self.robot = RootDevice(mac_address=device.mac_address, manager=self)
             self.robot.connect()
