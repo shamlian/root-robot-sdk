@@ -65,7 +65,7 @@ class Root(object):
         if backend == 'bluez':
             self._ble_manager = bluez.BluetoothDeviceManager(adapter_name = 'hci0')
         elif backend == 'bg' or backend == 'bluegiga':
-            self._ble_manager = bluez.BluetoothDeviceManager(adapter_name = 'port')
+            self._ble_manager = bg.BluetoothDeviceManager(adapter_name = 'port')
         else:
             raise ValueError('Unknown backend type.')
 
