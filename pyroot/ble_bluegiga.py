@@ -59,12 +59,20 @@ class RootDevice(object): #gatt.Device
 
     service_resolution_complete = False
 
-    def __init__(self, mac_address, manager, managed=True):
+    def __init__(self, mac_address, manager):
         try:
             self.rx_q = queue.SimpleQueue()
         except AttributeError:
             self.rx_q = queue.Queue()
-        super().__init__(mac_address, manager, managed)
+
+        self.mac_address = mac_address
+        self.manager = manager
+
+    def connect(self):
+        try:
+            self.device = self.manager.adapter.connect(self.mac_address, timeout = 1)
+        except pygatt.exceptions.NotConnectedError:
+            print('Failed to connect.')
         
     def connect_succeeded(self):
         super().connect_succeeded()
