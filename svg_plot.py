@@ -20,6 +20,7 @@ parser.add_argument('-l', '--min_length', type=float, default=10, help='Minimum 
 parser.add_argument('-e', '--epsilon', type=float, default=1, help='Distance between endpoints to consider "close enough" to not lift the pen')
 parser.add_argument('-t', '--test', action='store_true', help='Use Python turtle instead of robot')
 parser.add_argument('-n', '--name', type=str, help='Name of robot to connect to')
+parser.add_argument('-b', '--backend', type=str, help='BLE Backend to use (bluez or bluegiga)', default='bluez')
 parser.add_argument('--showsvg', action='store_true', help='Show SVG in default application instead of plotting with robot')
 parser.add_argument('-v', '--verbose', action='store_true')
 parser.add_argument('filename', type=str, help='SVG with path to plot')
@@ -32,9 +33,6 @@ except FileNotFoundError as e:
     print(e)
     exit(1)
 
-def invert_y(c): # I feel like there should be a better way
-    return numpy.real(c) - numpy.imag(c)*1j
-
 if args.showsvg:
     color_list = 'krgbcym'
     color_list *= int(len(paths) / len(color_list)) + 1
@@ -44,7 +42,7 @@ if args.showsvg:
 
 try:
     if not args.test:
-        robot = Root(args.name)
+        robot = Root(name = args.name, backend = args.backend)
     else:
         robot = Turtle()
     robot.wait_for_connect()
@@ -71,8 +69,8 @@ try:
             for line in line_list:
                 if robot.stop_project_flag.is_set():
                     raise RuntimeError('Robot requested stop.')
-                start = invert_y(line.start) * args.scale
-                end   = invert_y(line.end  ) * args.scale
+                start = numpy.conj(line.start) * args.scale
+                end   = numpy.conj(line.end  ) * args.scale
                 # if the robot's last known position isn't close enough to the start, lift the pen
                 if numpy.linalg.norm(robot._last_coord - start) > args.epsilon:
                     robot.set_marker_eraser_pos(robot.marker_up_eraser_up)

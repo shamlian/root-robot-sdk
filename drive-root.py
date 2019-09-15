@@ -2,10 +2,16 @@
 
 from pyroot import Root
 import time
+import argparse
+
+parser = argparse.ArgumentParser(description='Quick and dirty robot test.')
+parser.add_argument('-n', '--name', type=str, help='Name of robot to connect to')
+parser.add_argument('-b', '--backend', type=str, help='BLE Backend to use (bluez or bluegiga)', default='bluez')
+args = parser.parse_args()
 
 command = ""
 try:
-    robot = Root()
+    robot = Root(name = args.name, backend = args.backend)
     robot.wait_for_connect()
 
     print("Press letter (f,b,l,r) to drive robot (t) to turn, (s) to stop, (u or d) raise pen up or down, (m {val}) to move, (a {val}) to rotate, (z) to get robot states, (i) for sniff, (n {str}) to change name, (q) to quit")

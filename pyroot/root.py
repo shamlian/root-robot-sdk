@@ -7,7 +7,9 @@ import queue
 import numpy
 
 # Internal Dependencies
-from .ble_bluegiga import BluetoothDeviceManager, RootDevice
+#from .ble_bluegiga import BluetoothDeviceManager
+from . import ble_bluegiga as bg
+from . import ble_bluez as bluez
 
 class Root(object):
     """Simplifies communication with a real Root robot.
@@ -23,7 +25,7 @@ class Root(object):
 
     root_identifier_uuid = '48c5d828-ac2a-442d-97a3-0c9822b04979'
 
-    def __init__(self, name = None):
+    def __init__(self, name = None, backend = 'bluez'):
         """Sets up Bluetooth manager to look for robots.
         
         Parameters
@@ -60,7 +62,13 @@ class Root(object):
         self._last_theta_x10 = 900
         """int: Contains last known heading of robot."""
 
-        self._ble_manager = BluetoothDeviceManager(adapter_name = 'hci0')
+        if backend == 'bluez':
+            self._ble_manager = bluez.BluetoothDeviceManager(adapter_name = 'hci0')
+        elif backend == 'bg' or backend == 'bluegiga':
+            self._ble_manager = bluez.BluetoothDeviceManager(adapter_name = 'port')
+        else:
+            raise ValueError('Unknown backend type.')
+
         self._ble_manager.desired_name = name
         self._ble_manager.start_discovery(service_uuids=[self.root_identifier_uuid])
         self._ble_thread = threading.Thread(target = self._ble_manager.run)
