@@ -32,9 +32,6 @@ except FileNotFoundError as e:
     print(e)
     exit(1)
 
-def invert_y(c): # I feel like there should be a better way
-    return numpy.real(c) - numpy.imag(c)*1j
-
 if args.showsvg:
     color_list = 'krgbcym'
     color_list *= int(len(paths) / len(color_list)) + 1
@@ -71,8 +68,8 @@ try:
             for line in line_list:
                 if robot.stop_project_flag.is_set():
                     raise RuntimeError('Robot requested stop.')
-                start = invert_y(line.start) * args.scale
-                end   = invert_y(line.end  ) * args.scale
+                start = numpy.conj(line.start) * args.scale
+                end   = numpy.conj(line.end  ) * args.scale
                 # if the robot's last known position isn't close enough to the start, lift the pen
                 if numpy.linalg.norm(robot._last_coord - start) > args.epsilon:
                     robot.set_marker_eraser_pos(robot.marker_up_eraser_up)
