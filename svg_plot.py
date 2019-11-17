@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from pyroot import Root, Turtle
+from pyroot import Root, Turtle, RootGATT
 
 #TODO: Use arcs when possible instead of lines.
 # helpful links:
@@ -41,10 +41,9 @@ if args.showsvg:
 
 try:
     if not args.test:
-        robot = Root(args.name)
+        robot = Root(RootGATT(args.name))
     else:
         robot = Turtle()
-    robot.wait_for_connect()
     time.sleep(1) 
 
     segments = numpy.linspace(0, 1, args.approximate + 1)
