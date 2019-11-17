@@ -20,7 +20,7 @@ class RootGATT(object): # TODO: Make RootPhy ABC
         wait_for_connect : bool, optional
             If true (default), blocks until a connection is made
         """
-        self._ble_manager = BluetoothDeviceManager(adapter_name = port)
+        self._ble_manager = BluetoothDeviceManager(adapter_name = dev)
         self._ble_manager.desired_name = name
         self._ble_manager.start_discovery(service_uuids=[self.root_identifier_uuid])
         self._ble_thread = threading.Thread(target = self._ble_manager.run)
