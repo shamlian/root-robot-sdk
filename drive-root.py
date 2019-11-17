@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 
-from pyroot import Root
+from pyroot import Root, 
 import time
 
 command = ""
 try:
-    robot = Root()
+    robot = Root(phy_gatt())
     robot.wait_for_connect()
 
     print("Press letter (f,b,l,r) to drive robot (t) to turn, (s) to stop, (u or d) raise pen up or down, (m {val}) to move, (a {val}) to rotate, (z) to get robot states, (i) for sniff, (n {str}) to change name, (q) to quit")

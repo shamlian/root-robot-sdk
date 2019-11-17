@@ -23,15 +23,19 @@ class Root(object):
 
     root_identifier_uuid = '48c5d828-ac2a-442d-97a3-0c9822b04979'
 
-    def __init__(self, name = None):
+    def __init__(self, phy, name = None):
         """Sets up Bluetooth manager to look for robots.
         
         Parameters
         ----------
+        phy: RootPhy
+            Initialized RootPhy object. Used to pick physical layer.
         name : str, optional
             Name of the robot to connect to; if no name supplied, will connect
             to the first robot it sees.
         """
+
+        # do some check here to be sure phy is an initialized RootPhy object
 
         try:
             self._tx_q = queue.SimpleQueue()
