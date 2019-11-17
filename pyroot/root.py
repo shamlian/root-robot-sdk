@@ -22,7 +22,9 @@ class Root(object):
     """
 
     def __init__(self, phy):
-        """Sets up data link layer for Root robot.
+        """Sets up data link layer for Root robot. Kicks off some threads
+        used to manage the connection, and uses initialize_state() to
+        populate some information about the robot into the class.
         
         Parameters
         ----------

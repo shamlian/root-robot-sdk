@@ -32,10 +32,6 @@ class RootGATT(object): # TODO: Make RootPhy ABC
     def wait_for_connect(self, timeout = float('inf')):
         """Blocking function initializing robot connection.
 
-        Connects to the first Root robot it sees, kicks off some threads
-        used to manage the connection, and uses initialize_state() to
-        populate some information about the robot into the class.
-
         Parameters
         ----------
         timeout : float, optional
