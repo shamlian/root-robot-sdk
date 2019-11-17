@@ -1,6 +1,75 @@
 # External Dependencies
 import gatt
 import queue
+import time
+import threading
+
+class RootGATT(object): # TODO: Make RootPhy ABC
+    root_identifier_uuid = '48c5d828-ac2a-442d-97a3-0c9822b04979'
+
+    def __init__(self, name = None, sniff_mode = False):
+        """Sets up Bluetooth manager to look for robots.
+        
+        Parameters
+        ----------
+        name : str, optional
+            Name of the robot to connect to; if no name supplied, will connect
+            to the first robot it sees.
+        """
+        self._ble_manager = BluetoothDeviceManager(adapter_name = 'hci0')
+        self._ble_manager.desired_name = name
+        self._ble_manager.start_discovery(service_uuids=[self.root_identifier_uuid])
+        self._ble_thread = threading.Thread(target = self._ble_manager.run)
+        self._ble_thread.start()
+
+    def wait_for_connect(self, timeout = float('inf')):
+        """Blocking function initializing robot connection.
+
+        Connects to the first Root robot it sees, kicks off some threads
+        used to manage the connection, and uses initialize_state() to
+        populate some information about the robot into the class.
+
+        Parameters
+        ----------
+        timeout : float, optional
+            Time to wait for connection; if None, will wait forever. Will throw
+            TimeoutError if timeout exceeded.
+        """
+
+        timeout += time.time()
+
+        while self._ble_manager.robot is None and time.time() < timeout:
+            time.sleep(0.1) # wait for a root robot to be discovered
+        if self._ble_manager.robot is None:
+            raise TimeoutError('Timed out waiting for ' + self._ble_manager.desired_name)
+
+        while not self._ble_manager.robot.service_resolution_complete:
+            time.sleep(0.1) # allow services to resolve before continuing
+
+        self._rx_q = self._ble_manager.robot.rx_q
+
+    def is_connected(self):
+        """Utility function for determining state of bluetooth thread."""
+        return self._ble_thread.is_alive()
+
+    def disconnect(self):
+        """Disconnects BLE from robot and stops comms thread."""
+        self._ble_manager.stop()
+        self._ble_manager.robot.disconnect()
+        self._ble_thread.join()
+
+    def send_raw(self, packet):
+        """Helper method to send raw BLE packets to the robot.
+
+        Parameters
+        ----------
+        packet : bytes
+            20-byte packet to send to the robot.
+        """
+        if len(packet) == 20:
+            self._ble_manager.robot.tx_characteristic.write_value(packet)
+        else:
+            print('Error: send_raw_ble: Packet wrong length.')
 
 class BluetoothDeviceManager(gatt.DeviceManager):
     robot = None # root robot device

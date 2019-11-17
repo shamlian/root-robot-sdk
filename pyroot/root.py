@@ -7,7 +7,7 @@ import queue
 import numpy
 
 # Internal Dependencies
-from .ble_helpers import BluetoothDeviceManager, RootDevice
+#from .ble_helpers import BluetoothDeviceManager, RootDevice
 
 class Root(object):
     """Simplifies communication with a real Root robot.
@@ -21,34 +21,30 @@ class Root(object):
     RootRobotics/root-robot-ble-protocol
     """
 
-    root_identifier_uuid = '48c5d828-ac2a-442d-97a3-0c9822b04979'
-
-    def __init__(self, phy, name = None):
-        """Sets up Bluetooth manager to look for robots.
+    def __init__(self, phy):
+        """Sets up data link layer for Root robot.
         
         Parameters
         ----------
         phy: RootPhy
             Initialized RootPhy object. Used to pick physical layer.
-        name : str, optional
-            Name of the robot to connect to; if no name supplied, will connect
-            to the first robot it sees.
         """
 
+        self.phy = phy
         # do some check here to be sure phy is an initialized RootPhy object
 
         try:
             self._tx_q = queue.SimpleQueue()
         except AttributeError:
             self._tx_q = queue.Queue()
-        self._rx_q = None # set up in RootDevice class
+        self._rx_q = self.phy.rx_q
 
         self.pending_lock = threading.Lock()
         self.pending_resp = []
         """list: List of responses pending from the robot."""
 
         self.sniff_mode = False
-        """bool: If True, shows the raw BLE transactions to and from the robot."""
+        """bool: If True, shows the raw transactions to and from the robot."""
 
         self.ignore_crc_errors = False
         """bool: If true, ignores CRC errors in packets from the robot."""
@@ -64,38 +60,6 @@ class Root(object):
         self._last_theta_x10 = 900
         """int: Contains last known heading of robot."""
 
-        self._ble_manager = BluetoothDeviceManager(adapter_name = 'hci0')
-        self._ble_manager.desired_name = name
-        self._ble_manager.start_discovery(service_uuids=[self.root_identifier_uuid])
-        self._ble_thread = threading.Thread(target = self._ble_manager.run)
-        self._ble_thread.start()
-
-    def wait_for_connect(self, timeout = float('inf')):
-        """Blocking function initializing robot connection.
-
-        Connects to the first Root robot it sees, kicks off some threads
-        used to manage the connection, and uses initialize_state() to
-        populate some information about the robot into the class.
-
-        Parameters
-        ----------
-        timeout : float, optional
-            Time to wait for connection; if None, will wait forever. Will throw
-            TimeoutError if timeout exceeded.
-        """
-
-        timeout += time.time()
-
-        while self._ble_manager.robot is None and time.time() < timeout:
-            time.sleep(0.1) # wait for a root robot to be discovered
-        if self._ble_manager.robot is None:
-            raise TimeoutError('Timed out waiting for ' + self._ble_manager.desired_name)
-
-        while not self._ble_manager.robot.service_resolution_complete:
-            time.sleep(0.1) # allow services to resolve before continuing
-
-        self._rx_q = self._ble_manager.robot.rx_q
-
         threading.Thread(target = self._sending_thread).start()
         threading.Thread(target = self._receiving_thread).start()
         threading.Thread(target = self._expiration_thread).start()
@@ -103,16 +67,14 @@ class Root(object):
         self.initialize_state()
 
     def is_running(self):
-        """Utility function for determining state of bluetooth thread."""
-        return self._ble_thread.is_alive()
+        """Utility function for determining state of phy thread."""
+        return self._phy.is_connected()
 
     def disconnect(self):
         """Request disconnect from the robot and shut down connection."""
         command = struct.pack('>BBBqq', 0, 6, 0, 0, 0)
         self._tx_q.put((command, False))
-        self._ble_manager.stop()
-        self._ble_manager.robot.disconnect()
-        self._ble_thread.join()
+        self.phy.disconnect()
 
     def initialize_state(self):
         """Set up internal state dictionary.
@@ -530,9 +492,11 @@ class Root(object):
 
         Sends messages in order from the tx queue, waiting if any
         messages have responses pending.
+
+        If sniff mode is on, will print packet to standard out as it's sent.
         """
         inc = 0
-        while self._ble_thread.is_alive():
+        while self.phy.is_connected():
 
             # block sending new commands until no responses pending
             if self._responses_pending():
@@ -550,32 +514,17 @@ class Root(object):
                     self.pending_resp.append((packet[0:3], resp_expire))
                     self.pending_lock.release()
                 
-                self._send_raw_ble(packet + crc8.crc8(packet).digest())
+                self.phy.send_raw(packet + crc8.crc8(packet).digest())
+                if self.sniff_mode:
+                    print('>>>', list(packet))
+
                 inc += 1
                 if inc > 255:
                     inc = 0
 
-    def _send_raw_ble(self, packet):
-        """Helper method to send raw BLE packets to the robot.
-
-        If sniff mode is enabled, this function also prints the
-        packet to stdout.
-
-        Parameters
-        ----------
-        packet : bytes
-            20-byte packet to send to the robot.
-        """
-        if len(packet) == 20:
-            self._ble_manager.robot.tx_characteristic.write_value(packet)
-        else:
-            print('Error: send_raw_ble: Packet wrong length.')
-        if self.sniff_mode:
-            print('>>>', list(packet))
-
     def _expiration_thread(self):
         """Manages the expiration of packets in the receiving queue."""
-        while self._ble_thread.is_alive():
+        while self.phy.is_connected():
             time.sleep(0.5)
 
             self.pending_lock.acquire()
@@ -621,9 +570,12 @@ class Root(object):
 
         Interprets messages recieved in the rx queue in order and
         acts upon them, if necessary.
+
+        If sniff mode is set, will print packets to standard out as
+        they are received.
         """
         last_event = 255
-        while self._ble_thread.is_alive():
+        while self.phy.is_connected():
             if self._rx_q is not None and not self._rx_q.empty():
                 message = self._rx_q.get()
 

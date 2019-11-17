@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from pyroot import Root, 
+from pyroot import Root, RootGATT
 import time
 
 command = ""
