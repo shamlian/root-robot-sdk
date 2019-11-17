@@ -7,7 +7,7 @@ import threading
 class RootGATT(object): # TODO: Make RootPhy ABC
     root_identifier_uuid = '48c5d828-ac2a-442d-97a3-0c9822b04979'
 
-    def __init__(self, name = None, wait_for_connect = True):
+    def __init__(self, name = None, dev = 'hci0', wait_for_connect = True):
         """Sets up Bluetooth manager to look for robots.
         
         Parameters
@@ -15,8 +15,12 @@ class RootGATT(object): # TODO: Make RootPhy ABC
         name : str, optional
             Name of the robot to connect to; if no name supplied, will connect
             to the first robot it sees.
+        dev : str, optional
+            Name of the device to connect to; default is hci0
+        wait_for_connect : bool, optional
+            If true (default), blocks until a connection is made
         """
-        self._ble_manager = BluetoothDeviceManager(adapter_name = 'hci0')
+        self._ble_manager = BluetoothDeviceManager(adapter_name = port)
         self._ble_manager.desired_name = name
         self._ble_manager.start_discovery(service_uuids=[self.root_identifier_uuid])
         self._ble_thread = threading.Thread(target = self._ble_manager.run)
