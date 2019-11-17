@@ -30,14 +30,14 @@ class Root(object):
             Initialized RootPhy object. Used to pick physical layer.
         """
 
-        self.phy = phy
+        self._phy = phy
         # do some check here to be sure phy is an initialized RootPhy object
 
         try:
             self._tx_q = queue.SimpleQueue()
         except AttributeError:
             self._tx_q = queue.Queue()
-        self._rx_q = self.phy.rx_q
+        self._rx_q = self._phy.rx_q
 
         self.pending_lock = threading.Lock()
         self.pending_resp = []
@@ -74,7 +74,7 @@ class Root(object):
         """Request disconnect from the robot and shut down connection."""
         command = struct.pack('>BBBqq', 0, 6, 0, 0, 0)
         self._tx_q.put((command, False))
-        self.phy.disconnect()
+        self._phy.disconnect()
 
     def initialize_state(self):
         """Set up internal state dictionary.
@@ -496,7 +496,7 @@ class Root(object):
         If sniff mode is on, will print packet to standard out as it's sent.
         """
         inc = 0
-        while self.phy.is_connected():
+        while self._phy.is_connected():
 
             # block sending new commands until no responses pending
             if self._responses_pending():
@@ -514,7 +514,7 @@ class Root(object):
                     self.pending_resp.append((packet[0:3], resp_expire))
                     self.pending_lock.release()
                 
-                self.phy.send_raw(packet + crc8.crc8(packet).digest())
+                self._phy.send_raw(packet + crc8.crc8(packet).digest())
                 if self.sniff_mode:
                     print('>>>', list(packet))
 
@@ -524,7 +524,7 @@ class Root(object):
 
     def _expiration_thread(self):
         """Manages the expiration of packets in the receiving queue."""
-        while self.phy.is_connected():
+        while self._phy.is_connected():
             time.sleep(0.5)
 
             self.pending_lock.acquire()
@@ -575,7 +575,7 @@ class Root(object):
         they are received.
         """
         last_event = 255
-        while self.phy.is_connected():
+        while self._phy.is_connected():
             if self._rx_q is not None and not self._rx_q.empty():
                 message = self._rx_q.get()
 

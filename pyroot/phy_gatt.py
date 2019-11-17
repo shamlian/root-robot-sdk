@@ -7,7 +7,7 @@ import threading
 class RootGATT(object): # TODO: Make RootPhy ABC
     root_identifier_uuid = '48c5d828-ac2a-442d-97a3-0c9822b04979'
 
-    def __init__(self, name = None, sniff_mode = False):
+    def __init__(self, name = None, wait_for_connect = True):
         """Sets up Bluetooth manager to look for robots.
         
         Parameters
@@ -21,6 +21,9 @@ class RootGATT(object): # TODO: Make RootPhy ABC
         self._ble_manager.start_discovery(service_uuids=[self.root_identifier_uuid])
         self._ble_thread = threading.Thread(target = self._ble_manager.run)
         self._ble_thread.start()
+
+        if wait_for_connect:
+            self.wait_for_connect()
 
     def wait_for_connect(self, timeout = float('inf')):
         """Blocking function initializing robot connection.
@@ -46,7 +49,7 @@ class RootGATT(object): # TODO: Make RootPhy ABC
         while not self._ble_manager.robot.service_resolution_complete:
             time.sleep(0.1) # allow services to resolve before continuing
 
-        self._rx_q = self._ble_manager.robot.rx_q
+        self.rx_q = self._ble_manager.robot.rx_q
 
     def is_connected(self):
         """Utility function for determining state of bluetooth thread."""
