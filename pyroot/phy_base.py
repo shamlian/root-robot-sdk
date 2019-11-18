@@ -5,10 +5,7 @@ import time
 import threading
 from binascii import hexlify, unhexlify
 
-# Internal Dependencies
-from pyroot import RootPhy
-
-class RootSerial(RootPhy): # TODO: Make RootPhy ABC
+class RootSerial(object): # TODO: Make RootPhy ABC
 
     def __init__(self, name = None, dev = None, wait_for_connect = True):
         """Sets up serial port connection with robot.

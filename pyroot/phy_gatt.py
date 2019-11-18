@@ -4,7 +4,10 @@ import queue
 import time
 import threading
 
-class RootGATT(object): # TODO: Make RootPhy ABC
+# Internal Dependencies
+from pyroot import RootPhy
+
+class RootGATT(RootPhy):
     root_identifier_uuid = '48c5d828-ac2a-442d-97a3-0c9822b04979'
 
     def __init__(self, name = None, dev = 'hci0', wait_for_connect = True):
