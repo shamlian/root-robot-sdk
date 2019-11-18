@@ -46,9 +46,9 @@ class RootSerial(RootPhy): # TODO: Make RootPhy ABC
 
         timeout += time.time()
 
-        while self._serial_port.is_open() is False and time.time() < timeout:
+        while self._serial_port.is_open is False and time.time() < timeout:
             time.sleep(0.1) # wait for a root robot to be attached
-        if self._serial_port.is_open() is False:
+        if self._serial_port.is_open is False:
             raise TimeoutError('Timed out waiting for ' + self._desired_name)
 
         try:
@@ -77,7 +77,10 @@ class RootSerial(RootPhy): # TODO: Make RootPhy ABC
             try:
                 self._serial_port.write(hexlify(packet) + b'\n')
             except serial.SerialException as e:
+                print('Warning from send: ', end='')
                 print(e)
+            except TypeError as e:
+                pass # serial port shut down while sending
         else:
             print('Error: send_raw: Packet wrong length.')
 
@@ -86,7 +89,7 @@ class RootSerial(RootPhy): # TODO: Make RootPhy ABC
         Safely shuts things down if the connection is interrupted.
         """
 
-        while self._serial_port.is_open():
+        while self._serial_port.is_open:
             try:
                 packet = self._serial_port.readline()
                 if len(packet) == 41:
@@ -95,5 +98,7 @@ class RootSerial(RootPhy): # TODO: Make RootPhy ABC
                 else:
                     print('ERROR: Received packet of improper length')
             except serial.SerialException as e:
+                print('Warning from receive: ', end='')
                 print(e)
-                # assuming a SerialExeception causes the serial port to close
+            except TypeError as e:
+                pass # serial port shut down while sending
