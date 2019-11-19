@@ -62,6 +62,8 @@ class Root(object):
         self._last_theta_x10 = 900
         """int: Contains last known heading of robot."""
 
+        self.create_empty_state()
+
         threading.Thread(target = self._sending_thread).start()
         threading.Thread(target = self._receiving_thread).start()
         threading.Thread(target = self._expiration_thread).start()
@@ -78,16 +80,20 @@ class Root(object):
         self._tx_q.put((command, False))
         self._phy.disconnect()
 
+    def create_empty_state(self):
+        """Set up internal state dictionary with all state set to None.
+        """
+        
+        for devnum, device in self.supported_devices.items():
+            self.state[device] = None
+
     def initialize_state(self):
-        """Set up internal state dictionary.
+        """Initialize internal state dictionary.
 
         Since certain versions of the main board protocol don't support
         CRC properly, also request version information and set some
         internal flags so that warnings are thrown appropriately.
         """
-
-        for devnum, device in self.supported_devices.items():
-            self.state[device] = None
 
         self.disable_events()
         time.sleep(1) # not sure why this is necessary
