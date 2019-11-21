@@ -4,10 +4,9 @@ import time
 from struct import pack, unpack
 import queue
 import numpy
-from .packet import Packet
 
 # Internal Dependencies
-#from .ble_helpers import BluetoothDeviceManager, RootDevice
+from .packet import Packet
 
 class Root(object):
     """Simplifies communication with a real Root robot.
