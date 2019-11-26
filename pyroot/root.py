@@ -579,7 +579,7 @@ class Root(object):
             if self._rx_q is not None and not self._rx_q.empty():
                 packet = Packet.from_bytes(self._rx_q.get())
                 state   = packet.payload[4]
-                crc_fail = packet.check_crc()
+                crc_fail = not packet.check_crc()
 
                 event_fail = None
                 if (packet.dev, packet.cmd) in self.event_messages:
