@@ -22,6 +22,7 @@ parser.add_argument('-t', '--test', action='store_true', help='Use Python turtle
 parser.add_argument('-n', '--name', type=str, help='Name of robot to connect to')
 parser.add_argument('--showsvg', action='store_true', help='Show SVG in default application instead of plotting with robot')
 parser.add_argument('-v', '--verbose', action='store_true')
+parser.add_argument('-p', '--ser_port', type=str, help='If supplied, serial port to connect to (otherwise use BLE)')
 parser.add_argument('filename', type=str, help='SVG with path to plot')
 
 args = parser.parse_args()
@@ -41,10 +42,14 @@ if args.showsvg:
 
 try:
     if not args.test:
-        robot = Root(args.name)
+        if args.ser_port:
+            from pyroot import RootSerial
+            robot = Root(RootSerial(name = args.name, dev = args.ser_port))
+        else:
+            from pyroot import RootGATT
+            robot = Root(RootGATT(name = args.name))
     else:
         robot = Turtle()
-    robot.wait_for_connect()
     time.sleep(1) 
 
     segments = numpy.linspace(0, 1, args.approximate + 1)
@@ -86,7 +91,7 @@ except (KeyboardInterrupt, RuntimeError, TimeoutError) as e:
 
 try:
     robot.disconnect()
-except AttributeError: # never connected
+except NameError: # never connected
     pass
 
 if args.test:

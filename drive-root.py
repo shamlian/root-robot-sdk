@@ -2,11 +2,21 @@
 
 from pyroot import Root
 import time
+import argparse
+
+parser = argparse.ArgumentParser(description='Quick and dirty robot test.')
+parser.add_argument('-n', '--name', type=str, help='Name of robot to connect to')
+parser.add_argument('-p', '--ser_port', type=str, help='If supplied, serial port to connect to (otherwise use BLE)')
+args = parser.parse_args()
 
 command = ""
 try:
-    robot = Root()
-    robot.wait_for_connect()
+    if args.ser_port:
+        from pyroot import RootSerial
+        robot = Root(RootSerial(name = args.name, dev = args.ser_port))
+    else:
+        from pyroot import RootGATT
+        robot = Root(RootGATT(name = args.name))
 
     print("Press letter (f,b,l,r) to drive robot (t) to turn, (s) to stop, (u or d) raise pen up or down, (m {val}) to move, (a {val}) to rotate, (z) to get robot states, (i) for sniff, (n {str}) to change name, (q) to quit")
     while command != "q" and robot.is_running():
@@ -75,6 +85,5 @@ except (KeyboardInterrupt, TimeoutError) as e:
 print("Quitting")
 try:
     robot.disconnect()
-except AttributeError: # never connected
+except NameError: # never connected
     pass
-    
