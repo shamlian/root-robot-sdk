@@ -7,8 +7,12 @@ from binascii import hexlify, unhexlify
 
 # Internal Dependencies
 from pyroot import RootPhy
+from .packet import Packet
 
 class RootSerial(RootPhy): # TODO: Make RootPhy ABC
+
+    RX_PACKET_LEN = (Packet.PACKET_LEN * 2) + 1
+    TX_PACKET_LEN = Packet.PACKET_LEN
 
     def __init__(self, name = None, dev = None, wait_for_connect = True):
         """Sets up serial port connection with robot.
@@ -33,6 +37,11 @@ class RootSerial(RootPhy): # TODO: Make RootPhy ABC
         self._serial_port.flush()
         time.sleep(1) # wait for wakeup bleep
 
+        try:
+            self.rx_q = queue.SimpleQueue()
+        except AttributeError:
+            self.rx_q = queue.Queue()
+
         self._comms_thread = threading.Thread(target = self._maintain_connection)
         self._comms_thread.start()
 
@@ -56,11 +65,6 @@ class RootSerial(RootPhy): # TODO: Make RootPhy ABC
         if self._serial_port.is_open is False:
             raise TimeoutError('Timed out waiting for ' + self._desired_name)
 
-        try:
-            self.rx_q = queue.SimpleQueue()
-        except AttributeError:
-            self.rx_q = queue.Queue()
-
     def is_connected(self):
         """Utility function for determining state of serial thread."""
         return self._comms_thread.is_alive()
@@ -78,12 +82,13 @@ class RootSerial(RootPhy): # TODO: Make RootPhy ABC
         packet : bytes
             20-byte packet to send to the robot.
         """
-        if len(packet) == 20:
+        if len(packet) == self.TX_PACKET_LEN:
             try:
                 self._serial_port.write(hexlify(packet) + b'\n')
             except serial.SerialException as e:
-                print('Warning from send: ', end='')
+                print('Error from send: ', end='')
                 print(e)
+                self._serial_port.close()
             except TypeError as e:
                 pass # serial port shut down while sending
         else:
@@ -94,15 +99,27 @@ class RootSerial(RootPhy): # TODO: Make RootPhy ABC
         Safely shuts things down if the connection is interrupted.
         """
 
+        buffer = bytearray()
+
         while self._serial_port.is_open:
             try:
-                packet = self._serial_port.readline()
-                if len(packet) == 41:
-                    self.rx_q.put(unhexlify(packet[:-1]))
+                # rough logic from https://github.com/pyserial/pyserial/issues/216
+                while buffer.find(b'\n') >= 0:
+                    loc = buffer.find(b'\n')
+                    packet = buffer[:loc+1]
+                    buffer = buffer[loc+1:]
+
+                    if len(packet) == self.RX_PACKET_LEN:
+                        self.rx_q.put(unhexlify(packet[:-1]))
+                    else:
+                        print('Warning: Received packet of improper length')
                 else:
-                    print('ERROR: Received packet of improper length')
+                    waiting = max(1, min(2048, self._serial_port.in_waiting))
+                    buffer.extend(self._serial_port.read(waiting))
+
             except serial.SerialException as e:
-                print('Warning from receive: ', end='')
+                print('Error from receive: ', end='')
                 print(e)
+                self._serial_port.close()
             except (TypeError, AttributeError) as e:
                 pass # serial port shut down while receiving
