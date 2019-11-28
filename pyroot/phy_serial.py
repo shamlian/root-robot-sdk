@@ -28,6 +28,11 @@ class RootSerial(RootPhy): # TODO: Make RootPhy ABC
 
         self._serial_port = serial.Serial(port=dev, baudrate=115200)
         self._desired_name = name
+
+        self._serial_port.write(b'\n')
+        self._serial_port.flush()
+        time.sleep(1) # wait for wakeup bleep
+
         self._comms_thread = threading.Thread(target = self._maintain_connection)
         self._comms_thread.start()
 
@@ -93,12 +98,11 @@ class RootSerial(RootPhy): # TODO: Make RootPhy ABC
             try:
                 packet = self._serial_port.readline()
                 if len(packet) == 41:
-                    packet = unhexlify(packet[:-1])
-                    self.rx_q.put(packet)
+                    self.rx_q.put(unhexlify(packet[:-1]))
                 else:
                     print('ERROR: Received packet of improper length')
             except serial.SerialException as e:
                 print('Warning from receive: ', end='')
                 print(e)
-            except TypeError as e:
-                pass # serial port shut down while sending
+            except (TypeError, AttributeError) as e:
+                pass # serial port shut down while receiving
