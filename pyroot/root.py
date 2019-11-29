@@ -73,9 +73,22 @@ class Root(object):
         """Utility function for determining state of phy thread."""
         return self._phy.is_connected()
 
-    def disconnect(self):
-        """Request disconnect from the robot and shut down connection."""
+    def disconnect(self, timeout = 3):
+        """Request disconnect from the robot and shut down connection.
+
+        Parameters
+        -------
+        timeout : float
+            Number of seconds to wait for all pending transmissions to
+            be sent before forcing the disconnect at the physical layer.
+        """
+
         self._tx_q.put((Packet(0, 6, 0), False))
+
+        t = time.time() + timeout
+        
+        while time.time() < t and self.transmissions_pending():
+            time.sleep(0.1)
         self._phy.disconnect()
 
     def create_empty_state(self):
