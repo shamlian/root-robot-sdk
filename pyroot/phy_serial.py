@@ -88,8 +88,11 @@ class RootSerial(RootPhy): # TODO: Make RootPhy ABC
             except serial.SerialException as e:
                 print('Error from send: ', end='')
                 print(e)
-                self._serial_port.close()
-            except TypeError as e:
+                try:
+                    self._serial_port.close()
+                except OSError as e:
+                    pass
+            except (TypeError, OSError) as e:
                 pass # serial port shut down while sending
         else:
             print('Error: send_raw: Packet wrong length.')
@@ -120,6 +123,9 @@ class RootSerial(RootPhy): # TODO: Make RootPhy ABC
             except serial.SerialException as e:
                 print('Error from receive: ', end='')
                 print(e)
-                self._serial_port.close()
-            except (TypeError, AttributeError) as e:
+                try:
+                    self._serial_port.close()
+                except OSError as e:
+                    pass
+            except (TypeError, AttributeError, OSError) as e:
                 pass # serial port shut down while receiving
