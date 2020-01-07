@@ -527,7 +527,7 @@ class Root(object):
                     # need a timeout because responses are not guaranteed.
                     resp_expire = time.time() + self._calculate_timeout(packet)
                     self.pending_resp.append(
-                        (packet.dev, packet.cmd, packet.inc, resp_expire))
+                        (packet, resp_expire))
                     self.pending_lock.release()
 
                 self._phy.send_raw(packet.bytes)
@@ -540,17 +540,17 @@ class Root(object):
 
     def _expiration_thread(self):
         """Manages the expiration of packets in the receiving queue."""
-        def filter(x, t):
-            if t < x[3]:
+        def tfilter(x, t):
+            if t < x[1]:
                 return True
-            print("Warning: message with header {} expired!".format(x[0:3]))
+            print("Warning: message with header {} expired!".format([x[0].dev, x[0].cmd, x[0].inc]))
             return False
 
         while self._phy.is_connected():
             time.sleep(0.5)
             self.pending_lock.acquire()
             now = time.time()
-            self.pending_resp = [x for x in self.pending_resp if filter(x, now)]
+            self.pending_resp = [x for x in self.pending_resp if tfilter(x, now)]
             self.pending_lock.release()
 
     supported_devices = { 0: 'General',
@@ -681,7 +681,9 @@ class Root(object):
                     # see if (dev, cmd, inc, _) exists in pending_resp
                     result = [
                         i for i, resp in enumerate(self.pending_resp)
-                        if resp[0:3] == (packet.dev, packet.cmd, packet.inc)
+                        if (resp[0].dev == packet.dev
+                        and resp[0].cmd == packet.cmd
+                        and resp[0].inc == packet.inc)
                     ]
 
                     if len(result) != 1:
