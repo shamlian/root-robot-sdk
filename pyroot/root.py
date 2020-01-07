@@ -728,7 +728,7 @@ class Root(object):
                             self.state[dev_name] = pos # undefined
                     elif dev_name == 'Color' and packet.cmd == 1 and orig_packet is not None:
                         if self.state['ColorRaw'] is None:
-                            self.state['ColorRaw'] = [ [0]*32 for _ in range(5) ]
+                            self.state['ColorRaw'] = [ [None]*32 for _ in range(5) ]
                         offset = orig_packet.payload[0] * 8
                         for i in range(8):
                             self.state['ColorRaw'][orig_packet.payload[1]][offset + i] = \
