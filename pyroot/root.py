@@ -676,21 +676,26 @@ class Root(object):
                         print('Unhandled event message from ' + dev_name)
                         print(list(packet.bytes))
                 else:  # response message
+                    orig_packet = None
+                    
                     self.pending_lock.acquire()
 
                     # see if (dev, cmd, inc, _) exists in pending_resp
                     result = [
-                        i for i, resp in enumerate(self.pending_resp)
+                        resp for resp in self.pending_resp
                         if (resp[0].dev == packet.dev
                         and resp[0].cmd == packet.cmd
                         and resp[0].inc == packet.inc)
                     ]
+                    #print(result)
 
                     if len(result) != 1:
                         print('Warning: unexpected response for message',
                               packet.dev, packet.cmd, packet.inc)
                     else:
-                        del self.pending_resp[result[0]]
+                        #print ('got resp for', result[0][0].dev, result[0][0].cmd, result[0][0].inc)
+                        orig_packet = result[0]
+                        self.pending_resp.remove(result[0])
 
                     self.pending_lock.release()
 
