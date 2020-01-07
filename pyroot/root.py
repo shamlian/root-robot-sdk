@@ -97,6 +97,8 @@ class Root(object):
 
         for devnum, device in self.supported_devices.items():
             self.state[device] = None
+        for devnum, device in self.virtual_devices.items():
+            self.state[device] = None
 
     def initialize_state(self):
         """Initialize internal state dictionary.
@@ -557,11 +559,13 @@ class Root(object):
                           1: 'Motors',
                           2: 'MarkEraser',
                           4: 'Color',
-                          12: 'Bumper',
-                          13: 'Light',
-                          14: 'Battery',
-                          17: 'Touch',
-                          20: 'Cliff'}
+                         12: 'Bumper',
+                         13: 'Light',
+                         14: 'Battery',
+                         17: 'Touch',
+                         20: 'Cliff'}
+
+    virtual_devices = {   4: 'ColorRaw'}
 
     event_messages = ( ( 0,  4),
                        ( 1, 29),
@@ -694,7 +698,7 @@ class Root(object):
                               packet.dev, packet.cmd, packet.inc)
                     else:
                         #print ('got resp for', result[0][0].dev, result[0][0].cmd, result[0][0].inc)
-                        orig_packet = result[0]
+                        orig_packet = result[0][0]
                         self.pending_resp.remove(result[0])
 
                     self.pending_lock.release()
@@ -722,6 +726,13 @@ class Root(object):
                             self.state[dev_name] = 'marker_up_eraser_down'
                         else:
                             self.state[dev_name] = pos # undefined
+                    elif dev_name == 'Color' and packet.cmd == 1 and orig_packet is not None:
+                        if self.state['ColorRaw'] is None:
+                            self.state['ColorRaw'] = [ [0]*32 for _ in range(5) ]
+                        offset = orig_packet.payload[0] * 8
+                        for i in range(8):
+                            self.state['ColorRaw'][orig_packet.payload[1]][offset + i] = \
+                                packet.payload[i*2]*256 + packet.payload[i*2+1]
                     elif dev_name == 'Battery' and packet.cmd == 1:  # get battery level
                         self.state[dev_name] = packet.payload[6]
                     else:
