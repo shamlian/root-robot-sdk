@@ -467,10 +467,10 @@ class Root(object):
         timeout = 4  # minimum to wait
         cmd_type = (packet.dev, packet.cmd)
         if cmd_type == (1, 8):  # drive distance
-            distance = unpack('>i', packet.payload)
+            distance = unpack('>i', packet.payload[0:4])
             timeout += 1 + abs(*distance) / 10  # mm/s, drive speed
         elif cmd_type == (1, 12):  # rotate angle
-            angle = unpack('>i', packet.payload)
+            angle = unpack('>i', packet.payload[0:4])
             timeout += 1 + abs(*angle) / 1000  # decideg/s
         elif cmd_type == (2, 0):  # set marker/eraser position
             timeout += 1
