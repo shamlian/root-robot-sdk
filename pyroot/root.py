@@ -426,6 +426,11 @@ class Root(object):
             return None
         self._tx_q.put((Packet(5, 4, 0, payload=utf_phrase), True))
 
+
+    def get_light_sensor_data(self):
+        """Request raw light sensor data."""
+        self._tx_q.put((Packet(13, 1, 0), True))
+
     def get_battery_level(self):
         """Request the current battery level."""
         self._tx_q.put((Packet(14, 1, 0), True))
@@ -565,7 +570,8 @@ class Root(object):
                          17: 'Touch',
                          20: 'Cliff'}
 
-    virtual_devices = {   4: 'ColorRaw'}
+    virtual_devices = {   4: 'ColorRaw',
+                         13: 'LightRaw'}
 
     event_messages = ( ( 0,  4),
                        ( 1, 29),
@@ -733,6 +739,12 @@ class Root(object):
                         for i in range(8):
                             self.state['ColorRaw'][orig_packet.payload[1]][offset + i] = \
                                 packet.payload[i*2]*256 + packet.payload[i*2+1]
+                    elif dev_name == 'Light' and packet.cmd == 1 and orig_packet is not None:
+                        if self.state['LightRaw'] is None:
+                            self.state['LightRaw'] = [None]*2
+                        for i in range(2):
+                            self.state['LightRaw'][i] = \
+                                packet.payload[i*2+4]*256 + packet.payload[i*2+5]
                     elif dev_name == 'Battery' and packet.cmd == 1:  # get battery level
                         self.state[dev_name] = packet.payload[6]
                     else:
