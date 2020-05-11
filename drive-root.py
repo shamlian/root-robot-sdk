@@ -73,11 +73,6 @@ try:
             for i in range(4):
                 robot.drive_distance(100)
                 robot.rotate_angle(900)
-        if command == '`':
-            robot.get_versions(robot.main_board)
-            robot.get_versions(robot.color_board)
-            robot.get_battery_level()
-            robot.get_name()
 
 except (KeyboardInterrupt, TimeoutError) as e:
     print(e)
