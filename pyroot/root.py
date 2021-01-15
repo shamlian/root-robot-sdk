@@ -4,6 +4,8 @@ import time
 from struct import pack, unpack
 import queue
 import numpy
+import colorama
+from colorama import Fore, Back, Style
 
 # Internal Dependencies
 from .packet import Packet
@@ -30,6 +32,8 @@ class Root(object):
         phy: RootPhy
             Initialized RootPhy object. Used to pick physical layer.
         """
+
+        colorama.init()
 
         self._phy = phy
         # do some check here to be sure phy is an initialized RootPhy object
@@ -610,7 +614,34 @@ class Root(object):
                     last_event = packet.inc
 
                 if self.sniff_mode:
-                    print('C' if crc_fail else ' ', 'E' if event_fail else ' ', list(packet.bytes) )
+                    if (packet.bytes[0] == 4 and packet.bytes[1] == 2):
+                        for b in list(packet.bytes)[3:19]:
+                            high = b >> 4
+                            low = b & 0xf
+                            for n in [high, low]:
+                                if n == 0:
+                                    print(Fore.BLACK, Back.WHITE, end='')
+                                elif n == 1:
+                                    print(Fore.WHITE, Back.BLACK, end='')
+                                elif n == 2:
+                                    print(Fore.BLACK, Back.RED, end='')
+                                elif n == 3:
+                                    print(Fore.BLACK, Back.GREEN, end='')
+                                elif n == 4:
+                                    print(Fore.BLACK, Back.BLUE, end='')
+                                elif n == 5:
+                                    print(Fore.RED, Back.YELLOW, end='')
+                                elif n == 6:
+                                    print(Fore.BLACK, Back.YELLOW, end='')
+                                elif n == 7:
+                                    print(Fore.BLACK, Back.MAGENTA, end='')
+                                else:
+                                    print(Fore.BLACK, Back.CYAN, end='')
+                                print(format(n, 'x'), end='')
+                        print(Style.RESET_ALL, end='')
+                        print(' ', list(packet.bytes))
+                    else:
+                        print('C' if crc_fail else ' ', 'E' if event_fail else ' ', list(packet.bytes) )
 
                 if crc_fail and not self.ignore_crc_errors:
                     continue
