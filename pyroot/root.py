@@ -619,24 +619,38 @@ class Root(object):
                             high = b >> 4
                             low = b & 0xf
                             for n in [high, low]:
-                                if n == 0:
-                                    print(Fore.BLACK, Back.WHITE, end='')
-                                elif n == 1:
-                                    print(Fore.WHITE, Back.BLACK, end='')
-                                elif n == 2:
-                                    print(Fore.BLACK, Back.RED, end='')
-                                elif n == 3:
-                                    print(Fore.BLACK, Back.GREEN, end='')
-                                elif n == 4:
-                                    print(Fore.BLACK, Back.BLUE, end='')
-                                elif n == 5:
-                                    print(Fore.RED, Back.YELLOW, end='')
-                                elif n == 6:
-                                    print(Fore.BLACK, Back.YELLOW, end='')
-                                elif n == 7:
-                                    print(Fore.BLACK, Back.MAGENTA, end='')
-                                else:
-                                    print(Fore.BLACK, Back.CYAN, end='')
+                                if n == 0:   # White
+                                    print(Fore.WHITE + Back.WHITE + Style.BRIGHT, end='')
+                                elif n == 1: # Black
+                                    print(Fore.BLACK + Back.WHITE + Style.NORMAL, end='')
+                                elif n == 2: # Red
+                                    print(Fore.RED + Back.RED + Style.BRIGHT, end='')
+                                elif n == 3: # Green
+                                    print(Fore.GREEN + Back.GREEN + Style.BRIGHT, end='')
+                                elif n == 4: # Blue
+                                    print(Fore.BLUE + Back.BLUE + Style.BRIGHT, end='')
+                                elif n == 5: # Orange
+                                    print(Fore.YELLOW + Back.BLACK + Style.NORMAL, end='')
+                                elif n == 6: # Yellow
+                                    print(Fore.YELLOW + Back.YELLOW + Style.BRIGHT, end='')
+                                elif n == 7: # Magenta
+                                    print(Fore.MAGENTA + Back.MAGENTA + Style.BRIGHT, end='')
+                                elif n == 8: # Lime
+                                    print(Fore.GREEN + Back.BLACK + Style.BRIGHT, end='')
+                                elif n == 9: # Cyan
+                                    print(Fore.CYAN + Back.BLACK + Style.BRIGHT, end='')
+                                elif n ==10: # Violet
+                                    print(Fore.MAGENTA + Back.BLACK + Style.NORMAL, end='')
+                                elif n ==11: # Crimson
+                                    print(Fore.RED + Back.BLACK + Style.NORMAL, end='')
+                                elif n ==13: # Low Intensity
+                                    print(Fore.BLACK + Back.BLACK + Style.BRIGHT, end='')
+                                elif n ==14: # Low Saturation
+                                    print(Fore.WHITE + Back.BLACK + Style.NORMAL, end='')
+                                elif n ==15: # Unknown Hue
+                                    print(Fore.WHITE + Back.BLACK + Style.BRIGHT, end='')
+                                else:        # Unknown
+                                    print(Fore.RED + Back.CYAN + Style.NORMAL, end='')
                                 print(format(n, 'x'), end='')
                         print(Style.RESET_ALL, end='')
                         print(' ', list(packet.bytes))
