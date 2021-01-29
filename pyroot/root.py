@@ -203,7 +203,7 @@ class Root(object):
         this packet and implement it.
         """
         payload = bytes([0xFF] * Packet.PAYLOAD_LEN)
-        self._tx_q.put((Packet(0, 8, 0, payload=payload), False))
+        self._tx_q.put((Packet(0, 9, 0, payload=payload), False))
 
     def get_enabled_events(self):
         """Request bitfield of enabled devices."""
