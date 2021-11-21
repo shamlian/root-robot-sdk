@@ -23,6 +23,12 @@ try:
         command = input('> ') # wait for keyboard input
         if command == '':
             continue
+        if command == "0":
+            print("Kill Events")
+            robot.disable_events()
+        if command == "9":
+            print("Enable Events")
+            robot.enable_events()
         if command == "f":
             print("Drive forward")
             robot.set_motor_speeds(100, 100)
@@ -73,6 +79,8 @@ try:
             for i in range(4):
                 robot.drive_distance(100)
                 robot.rotate_angle(900)
+        if command == 'x':
+            robot.get_accelerometer()
 
 except (KeyboardInterrupt, TimeoutError) as e:
     print(e)

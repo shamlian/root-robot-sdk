@@ -439,6 +439,10 @@ class Root(object):
         """Request the current battery level."""
         self._tx_q.put((Packet(14, 1, 0), True))
 
+    def get_accelerometer(self):
+        """Request the accelerometer state."""
+        self._tx_q.put((Packet(16, 1, 0), True))
+
     @staticmethod
     def _bound(value, low, high):
         """Helper function to keep numbers in bounds.
@@ -571,6 +575,7 @@ class Root(object):
                          12: 'Bumper',
                          13: 'Light',
                          14: 'Battery',
+                         16: 'Accelerometer',
                          17: 'Touch',
                          20: 'Cliff'}
 
@@ -792,6 +797,8 @@ class Root(object):
                                 packet.payload[i*2+4]*256 + packet.payload[i*2+5]
                     elif dev_name == 'Battery' and packet.cmd == 1:  # get battery level
                         self.state[dev_name] = packet.payload[6]
+                    elif dev_name == 'Accelerometer' and packet.cmd == 1:  # get accelerometer
+                        self.state[dev_name] = unpack('>hhh', packet.payload[4:10])
                     else:
                         print('Unsupported message ', list(packet.bytes))
 
