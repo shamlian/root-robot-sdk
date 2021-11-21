@@ -4,6 +4,8 @@ import time
 from struct import pack, unpack
 import queue
 import numpy
+import colorama
+from colorama import Fore, Back, Style
 
 # Internal Dependencies
 from .packet import Packet
@@ -30,6 +32,8 @@ class Root(object):
         phy: RootPhy
             Initialized RootPhy object. Used to pick physical layer.
         """
+
+        colorama.init()
 
         self._phy = phy
         # do some check here to be sure phy is an initialized RootPhy object
@@ -610,7 +614,48 @@ class Root(object):
                     last_event = packet.inc
 
                 if self.sniff_mode:
-                    print('C' if crc_fail else ' ', 'E' if event_fail else ' ', list(packet.bytes) )
+                    if (packet.bytes[0] == 4 and packet.bytes[1] == 2):
+                        for b in list(packet.bytes)[3:19]:
+                            high = b >> 4
+                            low = b & 0xf
+                            for n in [high, low]:
+                                if n == 0:   # White
+                                    print(Fore.WHITE + Back.WHITE + Style.BRIGHT, end='')
+                                elif n == 1: # Black
+                                    print(Fore.BLACK + Back.WHITE + Style.NORMAL, end='')
+                                elif n == 2: # Red
+                                    print(Fore.RED + Back.RED + Style.BRIGHT, end='')
+                                elif n == 3: # Green
+                                    print(Fore.GREEN + Back.GREEN + Style.BRIGHT, end='')
+                                elif n == 4: # Blue
+                                    print(Fore.BLUE + Back.BLUE + Style.BRIGHT, end='')
+                                elif n == 5: # Orange
+                                    print(Fore.YELLOW + Back.BLACK + Style.NORMAL, end='')
+                                elif n == 6: # Yellow
+                                    print(Fore.YELLOW + Back.YELLOW + Style.BRIGHT, end='')
+                                elif n == 7: # Magenta
+                                    print(Fore.MAGENTA + Back.MAGENTA + Style.BRIGHT, end='')
+                                elif n == 8: # Lime
+                                    print(Fore.GREEN + Back.BLACK + Style.BRIGHT, end='')
+                                elif n == 9: # Cyan
+                                    print(Fore.CYAN + Back.BLACK + Style.BRIGHT, end='')
+                                elif n ==10: # Violet
+                                    print(Fore.MAGENTA + Back.BLACK + Style.NORMAL, end='')
+                                elif n ==11: # Crimson
+                                    print(Fore.RED + Back.BLACK + Style.NORMAL, end='')
+                                elif n ==13: # Low Intensity
+                                    print(Fore.BLACK + Back.BLACK + Style.BRIGHT, end='')
+                                elif n ==14: # Low Saturation
+                                    print(Fore.WHITE + Back.BLACK + Style.NORMAL, end='')
+                                elif n ==15: # Unknown Hue
+                                    print(Fore.WHITE + Back.BLACK + Style.BRIGHT, end='')
+                                else:        # Unknown
+                                    print(Fore.RED + Back.CYAN + Style.NORMAL, end='')
+                                print(format(n, 'x'), end='')
+                        print(Style.RESET_ALL, end='')
+                        print(' ', list(packet.bytes))
+                    else:
+                        print('C' if crc_fail else ' ', 'E' if event_fail else ' ', list(packet.bytes) )
 
                 if crc_fail and not self.ignore_crc_errors:
                     continue
